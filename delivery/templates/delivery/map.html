@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Карта доставки - Karakol Delivery</title>
+    <script src="https://maps.api.2gis.ru/2.0/loader.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .container {
+            display: flex;
+            height: calc(100vh - 80px);
+        }
+        
+        .map-container {
+            flex: 2;
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .sidebar {
+            flex: 1;
+            background: #f8f9fa;
+            padding: 20px;
+            overflow-y: auto;
+            max-width: 400px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .section h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .delivery-person {
+            background: #e8f5e8;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #27ae60;
+        }
+        
+        .order {
+            background: #fff3cd;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #ffc107;
+        }
+        
+        .restaurant {
+            background: #d1ecf1;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #17a2b8;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .status-available { background: #d4edda; color: #155724; }
+        .status-busy { background: #f8d7da; color: #721c24; }
+        .status-offline { background: #d1ecf1; color: #0c5460; }
+        
+        .order-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-confirmed { background: #d1ecf1; color: #0c5460; }
+        .status-preparing { background: #f8d7da; color: #721c24; }
+        .status-assigned { background: #d4edda; color: #155724; }
+        .status-delivering { background: #cce5ff; color: #004085; }
+        .status-delivered { background: #d4edda; color: #155724; }
+        
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        
+        .controls button {
+            display: block;
+            width: 100%;
+            margin: 5px 0;
+            padding: 8px;
+            border: none;
+            border-radius: 3px;
+            background: #3498db;
+            color: white;
+            cursor: pointer;
+        }
+        
+        .controls button:hover {
+            background: #2980b9;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        
+        .refresh-btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            width: 100%;
+        }
+        
+        .refresh-btn:hover {
+            background: #229954;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🗺️ Карта доставки - Karakol Delivery</h1>
+        <p>Отслеживание курьеров и заказов в реальном времени</p>
+    </div>
+    
+    <div class="container">
+        <div class="map-container">
+            <div id="map"></div>
+            
+            <div class="controls">
+                <button onclick="refreshData()">🔄 Обновить</button>
+                <button onclick="centerOnKarakol()">📍 Каракол</button>
+                <button onclick="toggleDeliveryPersons()">🚚 Курьеры</button>
+                <button onclick="toggleOrders()">📦 Заказы</button>
+                <button onclick="toggleRestaurants()">🏪 Рестораны</button>
+            </div>
+            
+            <div class="legend">
+                <h4>Условные обозначения:</h4>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #27ae60;"></div>
+                    <span>Курьеры</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #f39c12;"></div>
+                    <span>Заказы</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #3498db;"></div>
+                    <span>Рестораны</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="sidebar">
+            <button class="refresh-btn" onclick="refreshData()">🔄 Обновить данные</button>
+            
+            <div class="section">
+                <h3>🚚 Курьеры онлайн</h3>
+                <div id="delivery-persons-list">
+                    <p>Загрузка курьеров...</p>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h3>📦 Активные заказы</h3>
+                <div id="active-orders-list">
+                    <p>Загрузка заказов...</p>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h3>🏪 Рестораны</h3>
+                <div id="restaurants-list">
+                    <p>Загрузка ресторанов...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map;
+        let deliveryPersonMarkers = [];
+        let orderMarkers = [];
+        let restaurantMarkers = [];
+        let routeLayer;
+        
+        // Координаты Каракола
+        const KARAKOL_COORDS = [42.4907, 78.3936];
+        
+        // Инициализация карты
+        DG.then(function() {
+            map = DG.map('map', {
+                center: KARAKOL_COORDS,
+                zoom: 13
+            });
+            
+            // Загружаем начальные данные
+            refreshData();
+
+            // Подключаемся к WebSocket для live-обновлений
+            initWebSocket();
+        });
+        
+        // Обновление данных на карте
+        function refreshData() {
+            fetch('/api/map/data/')
+                .then(response => response.json())
+                .then(data => {
+                    updateDeliveryPersons(data.delivery_persons);
+                    updateOrders(data.active_orders);
+                    updateRestaurants(data.restaurants);
+                    updateSidebar(data);
+                })
+                .catch(error => console.error('Ошибка загрузки данных:', error));
+        }
+        
+        // Обновление маркеров курьеров
+        function updateDeliveryPersons(deliveryPersons) {
+            // Удаляем старые маркеры
+            deliveryPersonMarkers.forEach(marker => marker.remove());
+            deliveryPersonMarkers = [];
+            
+            deliveryPersons.forEach(person => {
+                if (person.current_latitude && person.current_longitude) {
+                    const marker = DG.marker([person.current_latitude, person.current_longitude], {
+                        icon: DG.icon({
+                            iconUrl: '/static/delivery/images/courier.png',
+                            iconSize: [32, 32]
+                        })
+                    }).addTo(map);
+                    
+                    marker.bindPopup(`
+                        <strong>${person.user.username}</strong><br>
+                        Статус: ${person.status}<br>
+                        Транспорт: ${person.vehicle_type}
+                    `);
+                    
+                    deliveryPersonMarkers.push(marker);
+                }
+            });
+        }
+        
+        // Обновление маркеров заказов
+        function updateOrders(orders) {
+            // Удаляем старые маркеры
+            orderMarkers.forEach(marker => marker.remove());
+            orderMarkers = [];
+            
+            orders.forEach(order => {
+                if (order.delivery_latitude && order.delivery_longitude) {
+                    const marker = DG.marker([order.delivery_latitude, order.delivery_longitude], {
+                        icon: DG.icon({
+                            iconUrl: '/static/delivery/images/order.png',
+                            iconSize: [32, 32]
+                        })
+                    }).addTo(map);
+                    
+                    marker.bindPopup(`
+                        <strong>Заказ #${order.order_id}</strong><br>
+                        Статус: ${order.status}<br>
+                        Сумма: ${order.total_amount} сом
+                    `);
+                    
+                    orderMarkers.push(marker);
+                    
+                    // Если есть курьер, строим маршрут
+                    if (order.delivery_person && 
+                        order.delivery_person.current_latitude && 
+                        order.delivery_person.current_longitude) {
+                        buildRoute(
+                            [order.delivery_person.current_latitude, order.delivery_person.current_longitude],
+                            [order.delivery_latitude, order.delivery_longitude]
+                        );
+                    }
+                }
+            });
+        }
+        
+        // Обновление маркеров ресторанов
+        function updateRestaurants(restaurants) {
+            // Удаляем старые маркеры
+            restaurantMarkers.forEach(marker => marker.remove());
+            restaurantMarkers = [];
+            
+            restaurants.forEach(restaurant => {
+                if (restaurant.latitude && restaurant.longitude) {
+                    const marker = DG.marker([restaurant.latitude, restaurant.longitude], {
+                        icon: DG.icon({
+                            iconUrl: '/static/delivery/images/restaurant.png',
+                            iconSize: [32, 32]
+                        })
+                    }).addTo(map);
+                    
+                    marker.bindPopup(`
+                        <strong>${restaurant.name}</strong><br>
+                        Адрес: ${restaurant.address}<br>
+                        Телефон: ${restaurant.phone_number}<br>
+                        Время работы: ${restaurant.working_hours}
+                    `);
+                    
+                    restaurantMarkers.push(marker);
+                }
+            });
+        }
+        
+        // Построение маршрута между точками
+        function buildRoute(from, to) {
+            if (routeLayer) {
+                routeLayer.remove();
+            }
+            
+            DG.Routing.route([
+                DG.latLng(from[0], from[1]),
+                DG.latLng(to[0], to[1])
+            ], {
+                vehicle: 'car'
+            }).then(function(result) {
+                routeLayer = DG.Routing.control({
+                    waypoints: [
+                        DG.latLng(from[0], from[1]),
+                        DG.latLng(to[0], to[1])
+                    ],
+                    router: result.router
+                }).addTo(map);
+            });
+        }
+        
+        // Обновление боковой панели
+        function updateSidebar(data) {
+            // Обновляем список курьеров
+            const deliveryPersonsList = document.getElementById('delivery-persons-list');
+            deliveryPersonsList.innerHTML = data.delivery_persons.map(person => `
+                <div class="delivery-person">
+                    <strong>${person.user.username}</strong>
+                    <span class="status status-${person.status}">${person.status}</span>
+                    <p>Транспорт: ${person.vehicle_type}</p>
+                </div>
+            `).join('');
+            
+            // Обновляем список заказов
+            const ordersList = document.getElementById('active-orders-list');
+            ordersList.innerHTML = data.active_orders.map(order => `
+                <div class="order">
+                    <strong>Заказ #${order.order_id}</strong>
+                    <span class="order-status status-${order.status}">${order.status}</span>
+                    <p>Сумма: ${order.total_amount} сом</p>
+                    ${order.delivery_person ? `<p>Курьер: ${order.delivery_person.user.username}</p>` : ''}
+                </div>
+            `).join('');
+            
+            // Обновляем список ресторанов
+            const restaurantsList = document.getElementById('restaurants-list');
+            restaurantsList.innerHTML = data.restaurants.map(restaurant => `
+                <div class="restaurant">
+                    <strong>${restaurant.name}</strong>
+                    <p>${restaurant.address}</p>
+                    <p>📞 ${restaurant.phone_number}</p>
+                    <p>⏰ ${restaurant.working_hours}</p>
+                </div>
+            `).join('');
+        }
+        
+        // Центрирование карты на Караколе
+        function centerOnKarakol() {
+            map.setView(KARAKOL_COORDS, 13);
+        }
+        
+        // Переключение видимости курьеров
+        function toggleDeliveryPersons() {
+            deliveryPersonMarkers.forEach(marker => {
+                if (map.hasLayer(marker)) {
+                    marker.remove();
+                } else {
+                    marker.addTo(map);
+                }
+            });
+        }
+        
+        // Переключение видимости заказов
+        function toggleOrders() {
+            orderMarkers.forEach(marker => {
+                if (map.hasLayer(marker)) {
+                    marker.remove();
+                } else {
+                    marker.addTo(map);
+                }
+            });
+        }
+        
+        // Переключение видимости ресторанов
+        function toggleRestaurants() {
+            restaurantMarkers.forEach(marker => {
+                if (map.hasLayer(marker)) {
+                    marker.remove();
+                } else {
+                    marker.addTo(map);
+                }
+            });
+        }
+
+        function initWebSocket() {
+            const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const socket = new WebSocket(`${wsScheme}://${window.location.host}/ws/map/`);
+
+            socket.onopen = () => console.log('WebSocket connected');
+            socket.onclose = () => console.log('WebSocket disconnected');
+            socket.onerror = err => console.error('WebSocket error', err);
+
+            socket.onmessage = evt => {
+                const msg = JSON.parse(evt.data);
+                if (msg.type === 'initial' || msg.type === 'update') {
+                    const data = msg.payload;
+                    updateDeliveryPersons(data.delivery_persons);
+                    updateOrders(data.active_orders);
+                    updateRestaurants(data.restaurants);
+                    updateSidebar(data);
+                }
+            };
+        }
+    </script>
+</body>
+</html> 
