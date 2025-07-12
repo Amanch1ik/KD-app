@@ -22,9 +22,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-!heh%od%0_kfiq@s74hdvb$&0=^)a@@c951gnaf%094jq5tjo*'
 
  
-DEBUG = True
+DEBUG = False                         # staging-режим
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["stg-api.karakol.delivery"]
 
 
 # Application definition
@@ -129,12 +129,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True  # Для разработки
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:8080",
-    "http://127.0.0.1:8080",
-]
+CORS_ALLOWED_ORIGINS = ["https://stg-app.karakol.delivery"]
 
 # REST Framework settings
 REST_FRAMEWORK = {

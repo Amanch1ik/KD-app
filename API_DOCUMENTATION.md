@@ -22,7 +22,7 @@ GET /api/categories/
 [
     {
         "id": 1,
-        "name": "Пицца",
+        "name": "Пицца",,
         "description": "Итальянская пицца"
     }
 ]

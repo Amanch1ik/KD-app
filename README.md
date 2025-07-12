@@ -213,16 +213,18 @@ python manage.py test
 5. Используйте WSGI сервер (Gunicorn)
 
 ## Контакты
-Для вопросов по API обращайтесь к backend-разработчику.
-
+Для вопросов по API обращайтесь к backend-разработчик(+996551697296/whatsapp,telegram)
+9
 ---
 
 **Версия**: 1.0.0  
 **Дата**: Июнь 2025  
-**Автор**: Backend Team 
+**Автор**: Айтбеков Аманбол 
 
 INSTALLED_APPS += ['corsheaders']
 MIDDLEWARE.insert(0, 'corsheaders.middleware.CorsMiddleware')
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',  # фронт
 ]
+
+### TEST 123
