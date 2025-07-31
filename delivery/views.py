@@ -15,6 +15,10 @@ from .serializers import (
 )
 from .utils import broadcast_map_update
 from django.contrib.auth.models import User
+from rest_framework.views import APIView
+from django.urls import reverse
+from rest_framework.reverse import reverse as drf_reverse
+from rest_framework.authtoken.models import Token
 
 # Create your views here.
 
@@ -269,6 +273,26 @@ class MapViewSet(viewsets.ViewSet):
         )
         serializer = OrderSerializer(active_orders, many=True)
         return Response(serializer.data)
+
+# Custom API Root View
+class ApiRoot(APIView):
+    def get(self, request, format=None):
+        return Response({
+            'categories': drf_reverse('category-list', request=request, format=format),
+            'products': drf_reverse('product-list', request=request, format=format),
+            'orders': drf_reverse('order-list', request=request, format=format),
+            'delivery-zones': drf_reverse('deliveryzone-list', request=request, format=format),
+            'delivery-persons': drf_reverse('deliveryperson-list', request=request, format=format),
+            'restaurants': drf_reverse('restaurant-list', request=request, format=format),
+            'delivery-tracking': drf_reverse('deliverytracking-list', request=request, format=format),
+            'order-items': drf_reverse('orderitem-list', request=request, format=format), # Добавлено
+            'ratings': drf_reverse('rating-list', request=request, format=format),       # Добавлено
+            'map': drf_reverse('map-data', request=request, format=format), # Изменено с map-list на map-data
+            'register': drf_reverse('register', request=request, format=format),
+            'login': drf_reverse('login', request=request, format=format),
+            'user-profile': drf_reverse('user-profile', request=request, format=format),
+        })
+
 
 # API для регистрации пользователя
 class RegisterView(generics.CreateAPIView):
