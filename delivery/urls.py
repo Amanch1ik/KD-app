@@ -1,19 +1,26 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from . import views
+from .views import (
+    CategoryViewSet, ProductViewSet, DeliveryZoneViewSet, DeliveryPersonViewSet,
+    OrderViewSet, OrderItemViewSet, DeliveryTrackingViewSet, RestaurantViewSet,
+    RatingViewSet, home, map_view, UserProfileView, RegisterView, LoginView, MapViewSet
+)
 
 router = DefaultRouter()
-router.register(r'categories', views.CategoryViewSet)
-router.register(r'products', views.ProductViewSet)
-router.register(r'orders', views.OrderViewSet, basename='order')
-router.register(r'delivery-zones', views.DeliveryZoneViewSet)
-router.register(r'delivery-persons', views.DeliveryPersonViewSet)
-router.register(r'restaurants', views.RestaurantViewSet)
-router.register(r'delivery-tracking', views.DeliveryTrackingViewSet)
-router.register(r'map', views.MapViewSet, basename='map')
+router.register(r'categories', CategoryViewSet)
+router.register(r'products', ProductViewSet)
+router.register(r'orders', OrderViewSet, basename='order')
+router.register(r'delivery-zones', DeliveryZoneViewSet)
+router.register(r'delivery-persons', DeliveryPersonViewSet)
+router.register(r'restaurants', RestaurantViewSet)
+router.register(r'delivery-tracking', DeliveryTrackingViewSet)
+router.register(r'map', MapViewSet, basename='map')
 
 urlpatterns = [
-    path('', views.home, name='home'),
-    path('map/', views.map_view, name='map'),
     path('api/', include(router.urls)),
+    path('api/register/', RegisterView.as_view(), name='register'),
+    path('api/login/', LoginView.as_view(), name='login'),
+    path('api/user-profile/', UserProfileView.as_view(), name='user-profile'),
+    path('', home, name='home'),
+    path('map/', map_view, name='map'),
 ]

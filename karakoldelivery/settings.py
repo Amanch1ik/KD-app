@@ -22,9 +22,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-!heh%od%0_kfiq@s74hdvb$&0=^)a@@c951gnaf%094jq5tjo*'
 
  
-DEBUG = False                         # staging-режим
+DEBUG = True # Поставьте False для продакшена!
 
-ALLOWED_HOSTS = ["stg-api.karakol.delivery"]
+ALLOWED_HOSTS = ["stg-api.karakol.delivery", "localhost", "127.0.0.1"]
 
 
 # Application definition
@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'drf_yasg',
+    'rest_framework.authtoken', # Добавляем для аутентификации по токенам
     'delivery',
 ]
 

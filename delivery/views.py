@@ -1,8 +1,8 @@
 from django.shortcuts import render
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
 from django.utils import timezone
 from datetime import timedelta
 from .models import Category, Product, Order, OrderItem, DeliveryPerson, DeliveryZone, DeliveryTracking, Restaurant, Rating
@@ -10,9 +10,11 @@ from .serializers import (
     CategorySerializer, ProductSerializer, OrderSerializer, OrderItemSerializer,
     DeliveryPersonSerializer, DeliveryZoneSerializer, DeliveryTrackingSerializer,
     RestaurantSerializer, LocationUpdateSerializer, DeliveryPersonLocationSerializer,
-    CreateOrderSerializer, MapDataSerializer, RatingSerializer
+    CreateOrderSerializer, MapDataSerializer, RatingSerializer,
+    UserSerializer, UserRegistrationSerializer, AuthTokenSerializer
 )
 from .utils import broadcast_map_update
+from django.contrib.auth.models import User
 
 # Create your views here.
 
@@ -221,6 +223,16 @@ class DeliveryTrackingViewSet(viewsets.ModelViewSet):
             return DeliveryTracking.objects.all()
         return DeliveryTracking.objects.filter(order__customer=self.request.user)
 
+class OrderItemViewSet(viewsets.ModelViewSet):
+    queryset = OrderItem.objects.all()
+    serializer_class = OrderItemSerializer
+    permission_classes = [IsAuthenticated]
+
+class RatingViewSet(viewsets.ModelViewSet):
+    queryset = Rating.objects.all()
+    serializer_class = RatingSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
 # Специальное представление для карты
 class MapViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticatedOrReadOnly]
@@ -257,6 +269,48 @@ class MapViewSet(viewsets.ViewSet):
         )
         serializer = OrderSerializer(active_orders, many=True)
         return Response(serializer.data)
+
+# API для регистрации пользователя
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserRegistrationSerializer
+    permission_classes = (AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        token, created = Token.objects.get_or_create(user=user)
+        return Response({
+            "user": UserSerializer(user, context=self.get_serializer_context()).data,
+            "token": token.key
+        }, status=status.HTTP_201_CREATED)
+
+# API для входа пользователя (получение токена)
+class LoginView(generics.CreateAPIView):
+    serializer_class = AuthTokenSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data,
+                                           context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+        token, created = Token.objects.get_or_create(user=user)
+        return Response({
+            'token': token.key,
+            'user_id': user.pk,
+            'email': user.email,
+            'username': user.username
+        })
+
+# API для получения информации о текущем пользователе
+class UserProfileView(generics.RetrieveAPIView):
+    serializer_class = UserSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def get_object(self):
+        return self.request.user
+
 
 def home(request):
     return render(request, 'delivery/home.html')
