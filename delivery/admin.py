@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Product, Order, OrderItem, DeliveryPerson, DeliveryZone, DeliveryTracking, Restaurant, Rating
+from .models import Category, Product, Order, OrderItem, DeliveryPerson, DeliveryZone, DeliveryTracking, Restaurant, Rating, UserProfile
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -80,3 +80,10 @@ class RatingAdmin(admin.ModelAdmin):
     list_display = ['order', 'score', 'courier', 'restaurant', 'created_at']
     list_filter = ['score', 'created_at']
     search_fields = ['order__order_id', 'comment', 'courier__user__username', 'restaurant__name']
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ['user', 'role', 'phone_number']
+    list_filter = ['role']
+    search_fields = ['user__username', 'phone_number']
+    list_editable = ['role']

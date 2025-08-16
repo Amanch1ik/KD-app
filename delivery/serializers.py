@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Product, Order, OrderItem, DeliveryPerson, DeliveryZone, DeliveryTracking, Restaurant, Rating
+from .models import Category, Product, Order, OrderItem, DeliveryPerson, DeliveryZone, DeliveryTracking, Restaurant, Rating, UserProfile, Payout, Payment, DeviceToken
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 
@@ -7,10 +7,11 @@ from django.contrib.auth import authenticate
 # Сериализатор для регистрации нового пользователя
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password2 = serializers.CharField(style={'input_type': 'password'}, write_only=True)
+    phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'password2']
+        fields = ['username', 'email', 'password', 'password2', 'phone_number']
         extra_kwargs = {
             'password': {'write_only': True}
         }
@@ -21,11 +22,15 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
+        phone_number = validated_data.pop('phone_number', None)
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
             password=validated_data['password']
         )
+        if phone_number:
+            user.profile.phone_number = phone_number
+            user.profile.save()
         return user
 
 # Сериализатор для входа (получения токена)
@@ -50,10 +55,17 @@ class AuthTokenSerializer(serializers.Serializer):
 
 
 # Сериализатор для модели User (если нужна информация о пользователе)
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfile
+        fields = ['role', 'phone_number']
+
 class UserSerializer(serializers.ModelSerializer):
+    profile = UserProfileSerializer(read_only=True)
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'email']
+        fields = ['id', 'username', 'email', 'profile']
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -166,3 +178,33 @@ class RatingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rating
         fields = ['id', 'order', 'score', 'comment', 'created_at']
+
+class DeliveryPersonDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DeliveryPerson
+        fields = [
+            'document_type', 'document_number', 
+            'document_front_image', 'document_back_image', 
+            'is_documents_verified'
+        ]
+        read_only_fields = ['is_documents_verified'] # Это поле должно обновляться админом
+
+class PayoutSerializer(serializers.ModelSerializer):
+    delivery_person_username = serializers.CharField(source='delivery_person.user.username', read_only=True)
+
+    class Meta:
+        model = Payout
+        fields = ['id', 'delivery_person', 'delivery_person_username', 'amount', 'payout_date', 'description']
+        read_only_fields = ['delivery_person', 'payout_date'] # Эти поля должны устанавливаться на бэкенде
+
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = ['id', 'order', 'amount', 'payment_method', 'transaction_id', 'status', 'created_at', 'updated_at']
+        read_only_fields = ['status', 'created_at', 'updated_at'] # Статус и даты обновляются автоматически
+
+class DeviceTokenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DeviceToken
+        fields = ['id', 'user', 'registration_id', 'device_type', 'created_at']
+        read_only_fields = ['user', 'created_at']

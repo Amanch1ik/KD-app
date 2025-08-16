@@ -36,6 +36,21 @@ class DeliveryZone(models.Model):
     def __str__(self):
         return self.name
 
+class UserProfile(models.Model):
+    ROLE_CHOICES = [
+        ('client', 'Клиент'),
+        ('courier', 'Курьер'),
+        ('admin', 'Админ'),
+        ('restaurant_partner', 'Партнёр-магазин'),
+    ]
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='client')
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.get_role_display()}"
+
+
 class DeliveryPerson(models.Model):
     STATUS_CHOICES = [
         ('available', 'Доступен'),
@@ -57,12 +72,21 @@ class DeliveryPerson(models.Model):
     last_location_update = models.DateTimeField(auto_now=True)
     is_available = models.BooleanField(default=True)
     avg_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
+
+    # Поля для верификации документов
+    document_type = models.CharField(max_length=50, blank=True, null=True, help_text="Тип документа (паспорт, права и т.д.)")
+    document_number = models.CharField(max_length=100, blank=True, null=True, help_text="Номер документа")
+    document_front_image = models.ImageField(upload_to='documents/front/', blank=True, null=True, help_text="Изображение лицевой стороны документа")
+    document_back_image = models.ImageField(upload_to='documents/back/', blank=True, null=True, help_text="Изображение обратной стороны документа")
+    is_documents_verified = models.BooleanField(default=False, help_text="Статус верификации документов")
+    document_submission_date = models.DateTimeField(auto_now_add=True, null=True, blank=True, help_text="Дата подачи документов")
     
     def __str__(self):
         return f"{self.user.username} - {self.get_vehicle_type_display()}"
 
 class Order(models.Model):
     STATUS_CHOICES = [
+        ('cart', 'Корзина'), # Добавлен статус 'Корзина'
         ('pending', 'Ожидает подтверждения'),
         ('confirmed', 'Подтвержден'),
         ('preparing', 'Готовится'),
@@ -201,7 +225,8 @@ class Restaurant(models.Model):
     working_hours = models.CharField(max_length=100, default="09:00-22:00")
     is_active = models.BooleanField(default=True)
     avg_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
-    
+    partner_user = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_restaurants', help_text="Пользователь, управляющий этим рестораном (партнёр-магазин)")
+
     def __str__(self):
         return self.name
 
@@ -231,3 +256,95 @@ class Rating(models.Model):
         rest_avg = self.restaurant.ratings.aggregate(avg=Avg('score'))['avg'] or 0
         self.restaurant.avg_rating = rest_avg
         self.restaurant.save(update_fields=['avg_rating'])
+
+class Payout(models.Model):
+    delivery_person = models.ForeignKey(DeliveryPerson, on_delete=models.CASCADE, related_name='payouts')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payout_date = models.DateTimeField(auto_now_add=True)
+    description = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return f"Выплата {self.amount} для {self.delivery_person.user.username} от {self.payout_date.strftime('%Y-%m-%d')}"
+
+    class Meta:
+        ordering = ['payout_date']
+
+class PromoCode(models.Model):
+    DISCOUNT_TYPE_CHOICES = [
+        ('percentage', 'Процентная скидка'),
+        ('fixed_amount', 'Фиксированная сумма'),
+        ('free_delivery', 'Бесплатная доставка'),
+    ]
+    code = models.CharField(max_length=50, unique=True, help_text="Промокод (например, NEWYEAR2024)")
+    discount_type = models.CharField(max_length=20, choices=DISCOUNT_TYPE_CHOICES, default='fixed_amount')
+    discount_value = models.DecimalField(max_digits=5, decimal_places=2, help_text="Значение скидки (например, 10 для 10% или 150 для 150 ед.)")
+    start_date = models.DateTimeField(help_text="Дата начала действия промокода")
+    end_date = models.DateTimeField(help_text="Дата окончания действия промокода")
+    min_order_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Минимальная сумма заказа для применения промокода")
+    is_active = models.BooleanField(default=True, help_text="Активен ли промокод")
+    usage_limit = models.PositiveIntegerField(blank=True, null=True, help_text="Максимальное количество использований промокода")
+    times_used = models.PositiveIntegerField(default=0, help_text="Сколько раз промокод был использован")
+
+    def __str__(self):
+        return self.code
+
+    def is_valid(self, order_amount):
+        from django.utils import timezone
+        now = timezone.now()
+        if not self.is_active:
+            return False
+        if self.start_date > now or self.end_date < now:
+            return False
+        if order_amount < self.min_order_amount:
+            return False
+        if self.usage_limit is not None and self.times_used >= self.usage_limit:
+            return False
+        return True
+
+    def apply_discount(self, order_amount, delivery_fee):
+        if not self.is_valid(order_amount):
+            return 0, delivery_fee, False # Скидка, новая стоимость доставки, флаг применения
+
+        if self.discount_type == 'percentage':
+            discount_amount = order_amount * (self.discount_value / 100)
+            return discount_amount, delivery_fee, True
+        elif self.discount_type == 'fixed_amount':
+            discount_amount = self.discount_value
+            return discount_amount, delivery_fee, True
+        elif self.discount_type == 'free_delivery':
+            return 0, 0, True # 0 скидка, 0 доставка
+        return 0, delivery_fee, False
+
+
+class Payment(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Ожидает'),
+        ('completed', 'Завершена'),
+        ('failed', 'Неуспешна'),
+        ('refunded', 'Возвращена'),
+    ]
+    order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='payment')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_method = models.CharField(max_length=50)
+    transaction_id = models.CharField(max_length=255, unique=True, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Payment for Order {self.order.order_id} - {self.amount} ({self.status})"
+
+
+class DeviceToken(models.Model):
+    DEVICE_TYPE_CHOICES = [
+        ('android', 'Android'),
+        ('ios', 'iOS'),
+        ('web', 'Web'),
+    ]
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='device_tokens')
+    registration_id = models.CharField(max_length=255, unique=True, help_text="Токен устройства для push-уведомлений")
+    device_type = models.CharField(max_length=10, choices=DEVICE_TYPE_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Token for {self.user.username} ({self.device_type})"
