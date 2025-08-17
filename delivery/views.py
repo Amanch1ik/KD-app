@@ -36,7 +36,6 @@ class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.filter(available=True)
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
-    filterset_fields = ['category', 'available'] # Добавляем фильтрацию по категории и доступности
     search_fields = ['name', 'description'] # Добавляем поиск по имени и описанию
     
     @action(detail=False, methods=['get'])
@@ -152,12 +151,12 @@ class RestaurantViewSet(viewsets.ModelViewSet):
     serializer_class = RestaurantSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     search_fields = ['name', 'address'] # Добавляем поиск по имени и адресу
-    filterset_fields = ['is_active', 'avg_rating'] # Добавляем фильтрацию по активности и среднему рейтингу
+    # filterset_fields = ['is_active', 'avg_rating'] # Убираем django-filter
 
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
-    filterset_fields = ['status', 'delivery_person', 'customer', 'created_at'] # Добавляем поля для фильтрации
+    # filterset_fields = ['status', 'delivery_person', 'customer', 'created_at'] # Убираем django-filter
     search_fields = ['order_id', 'delivery_address', 'customer_name', 'phone_number'] # Добавляем поля для поиска
     
     def get_queryset(self):
@@ -585,7 +584,7 @@ class ApiRoot(APIView):
             'device-tokens': drf_reverse('device-token-list', request=request, format=format), # Добавлено
             'map': drf_reverse('map-data', request=request, format=format), # Изменено с map-list на map-data
             'register': drf_reverse('register', request=request, format=format),
-            'login': drf_reverse('login', request=request, format=format),
+            'token': drf_reverse('token_obtain_pair', request=request, format=format),
             'user-profile': drf_reverse('user-profile', request=request, format=format),
         })
 
