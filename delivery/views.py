@@ -10,7 +10,7 @@ from .serializers import (
     CategorySerializer, ProductSerializer, OrderSerializer, OrderItemSerializer,
     DeliveryPersonSerializer, DeliveryZoneSerializer, DeliveryTrackingSerializer,
     RestaurantSerializer, LocationUpdateSerializer, DeliveryPersonLocationSerializer,
-    CreateOrderSerializer, MapDataSerializer, RatingSerializer,
+    MapDataSerializer, RatingSerializer,
     UserSerializer, UserRegistrationSerializer, AuthTokenSerializer, PayoutSerializer, PaymentSerializer, DeviceTokenSerializer # Добавлен PaymentSerializer и DeviceTokenSerializer
 )
 from .utils import broadcast_map_update
@@ -46,6 +46,15 @@ class ProductViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(products, many=True)
             return Response(serializer.data)
         return Response({'error': 'category_id parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'])
+    def by_restaurant(self, request):
+        restaurant_id = request.query_params.get('restaurant')
+        if restaurant_id:
+            products = Product.objects.filter(restaurant_id=restaurant_id, available=True)
+            serializer = self.get_serializer(products, many=True)
+            return Response(serializer.data)
+        return Response({'error': 'restaurant parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
 
 class DeliveryZoneViewSet(viewsets.ModelViewSet):
     queryset = DeliveryZone.objects.filter(is_active=True)
@@ -174,7 +183,6 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Order.objects.filter(customer=user)
     
     def perform_create(self, serializer):
-        # Автоматически назначаем курьера при создании заказа
         order = serializer.save(customer=self.request.user)
         
         # Находим ближайшего доступного курьера
@@ -203,12 +211,27 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
         
         # Если клиент передал restaurant_id, сохраняем
-        restaurant_id = self.request.data.get('restaurant')
-        if restaurant_id:
-            try:
-                order.restaurant = Restaurant.objects.get(id=restaurant_id)
-            except Restaurant.DoesNotExist:
-                pass
+        # restaurant_id теперь должен быть внутри validated_data из OrderSerializer
+        # Если фронтенд отправляет restaurant_id в корне запроса, то это нужно будет откорректировать
+        # Если restaurant_id приходит внутри items_data (через product->restaurant), то тут ничего не надо
+        # Для текущего фронтенда, он должен быть в root level. Проверяем.
+        # Фронтенд не отправляет restaurant_id при создании заказа, он формирует OrderItems. 
+        # restaurant_info должен браться из OrderItem.product.restaurant
+        
+        # Проверяем, есть ли restaurant_id в validated_data (этот кусок кода уже не нужен)
+        # restaurant_id = self.request.data.get('restaurant')
+        # if restaurant_id:
+        #     try:
+        #         order.restaurant = Restaurant.objects.get(id=restaurant_id)
+        #     except Restaurant.DoesNotExist:
+        #         pass
+        
+        # Добавляем ресторан к заказу из первого элемента, если он есть
+        if not order.restaurant and order.items.exists():
+            first_item_product_restaurant = order.items.first().product.restaurant
+            if first_item_product_restaurant:
+                order.restaurant = first_item_product_restaurant
+                order.save()
     
     @action(detail=True, methods=['post'])
     def assign_courier(self, request, pk=None):

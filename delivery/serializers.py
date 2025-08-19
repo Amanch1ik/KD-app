@@ -112,7 +112,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
         fields = ['id', 'product', 'product_name', 'product_price', 'quantity', 'price']
 
 class OrderSerializer(serializers.ModelSerializer):
-    items = OrderItemSerializer(many=True, read_only=True)
+    items = OrderItemSerializer(many=True)
     customer_username = serializers.CharField(source='customer.username', read_only=True)
     delivery_person_info = DeliveryPersonSerializer(source='delivery_person', read_only=True)
     delivery_zone_info = DeliveryZoneSerializer(source='delivery_zone', read_only=True)
@@ -133,6 +133,19 @@ class OrderSerializer(serializers.ModelSerializer):
             'delivery_person', 'delivery_person_info', 'delivery_zone', 'delivery_zone_info',
             'restaurant', 'restaurant_info'
         ]
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        order = Order.objects.create(**validated_data)
+        total_amount = 0
+        for item_data in items_data:
+            product = item_data['product']
+            quantity = item_data['quantity']
+            OrderItem.objects.create(order=order, product=product, quantity=quantity, price=product.price)
+            total_amount += product.price * quantity
+        order.total_amount = total_amount
+        order.save()
+        return order
 
 class DeliveryTrackingSerializer(serializers.ModelSerializer):
     delivery_person_name = serializers.CharField(source='delivery_person.user.username', read_only=True)
