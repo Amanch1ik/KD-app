@@ -38,6 +38,13 @@ class ProductViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticatedOrReadOnly]
     search_fields = ['name', 'description'] # Добавляем поиск по имени и описанию
     
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        restaurant_id = self.request.query_params.get('restaurant')
+        if restaurant_id:
+            queryset = queryset.filter(restaurant_id=restaurant_id)
+        return queryset
+    
     @action(detail=False, methods=['get'])
     def by_category(self, request):
         category_id = request.query_params.get('category_id')
