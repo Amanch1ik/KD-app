@@ -1,96 +1,1063 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="kg">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Karakol Delivery</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://maps.api.2gis.ru/2.0/loader.js?pkg=full"></script>
     <style>
+        /* Asosiy ranglar, shrift va animatsiyalar */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        :root {
+            --primary-pink: #ec4899;
+            --light-pink: #fce7f3;
+            --apple-white: #fcfcfc;
+            --dark-gray: #262626;
+        }
         body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--apple-white);
+            color: var(--dark-gray);
         }
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 1024px;
+            margin: auto;
+            padding: 1rem;
         }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 30px;
+        .page-content {
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
         }
-        .api-section {
-            margin: 20px 0;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 5px;
+        .page-content.active {
+            display: block;
         }
-        .api-section h2 {
-            color: #007bff;
-            margin-top: 0;
-        }
-        .endpoint {
-            background: #e9ecef;
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 3px;
-            font-family: monospace;
-        }
-        .admin-link {
-            display: inline-block;
-            background: #28a745;
+        .lang-button.active {
+            background-color: var(--primary-pink);
             color: white;
-            padding: 10px 20px;
-            text-decoration: none;
-            border-radius: 5px;
-            margin: 10px 5px;
+            font-weight: 500;
         }
-        .admin-link:hover {
-            background: #218838;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
+        /* Asosiy ranglarni Tailwind-ga o'tkazish */
+        .bg-primary { background-color: var(--primary-pink); }
+        .text-primary { color: var(--primary-pink); }
+        .hover-bg-primary:hover { background-color: #d9468e; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>🚚 Karakol Delivery</h1>
-        
-        <div class="api-section">
-            <h2>📡 API Endpoints</h2>
-            <p>Доступные API эндпоинты:</p>
+<body class="min-h-screen flex flex-col">
+
+    <script>
+        const appState = {
+            apiBaseUrl: 'http://127.0.0.1:8000/',
+            token: null,
+            currentPage: 'login',
+            currentLang: 'kg', // Default to Kyrgyz
+            currentCurrency: 'KGS', // Default to Kyrgyz currency
+            cart: [],
+            cachedData: {
+                restaurants: [],
+                products: [],
+                orders: [],
+                profile: null
+            },
+
+            translations: {
+                'kg': {
+                    appName: 'Karakol Delivery', homeTitle: 'Бир чыкылдатуу менен эң даамдуу тамактар!', homeSubtitle: 'Сүйүктүү рестораныңыздан тамакка заказ бериңиз.', viewRestaurants: 'Ресторандарды көрүү',
+                    restaurantsTitle: 'Ресторандар', menuTitle: 'Меню', addToCart: 'Себетке кошуу', orderPageTitle: 'Буйрутма берүү', orderSummary: 'Сиздин буйрутмаңыз:',
+                    totalSum: 'Жалпы сумма:', paymentType: 'Төлөм түрү:', placeOrder: 'Буйрутма берүү', trackingTitle: 'Буйрутманы көзөмөлдөө',
+                    courierStatus: 'Курьер жолдо...', profileTitle: 'Менин профилим', orderHistory: 'Буйрутмалар таржымалы', restaurant: 'Ресторан', courier: 'Курьер', status: 'Статус', backHome: 'Башкы бетке кайтуу',
+                    emptyCart: 'Себет бош, адегенде товар тандаңыз!', itemAdded: 'себетке кошулду',
+                    loginTitle: 'Кош келиңиз!', loginSubtitle: 'Кирүү үчүн маалыматтарды киргизиңиз', username: 'Колдонуучу аты', password: 'Сырсөз', loginButton: 'Кирүү',
+                    invalidLogin: 'Колдонуучу аты же сырсөз туура эмес!', logout: 'Чыгуу', loading: 'Жүктөлүүдө...', homeButton: 'Башкы', cartButton: 'Себет', profileButton: 'Профиль',
+                    registerTitle: 'Катталуу', registerButton: 'Катталуу',
+                    registrationSuccess: 'Сиз ийгиликтүү катталдыңыз! Эми кире аласыз.', footerText: 'Бардык укуктар корголгон.',
+                    accountExists: 'Аккаунт бар, кириңиз.',
+                    passwordMismatch: 'Сырсөздөр дал келбейт.',
+                    passwordTooShort: 'Сырсөз кеминде 8 белгиден турушу керек.',
+                    passwordNoUppercase: 'Сырсөз кеминде бир чоң тамганы камтышы керек.',
+                    passwordNoLowercase: 'Сырсөз кеминде бир кичине тамганы камтышы керек.',
+                    passwordNoDigit: 'Сырсөз кеминде бир санды камтышы керек.',
+                    passwordNoSpecialChar: 'Сырсөз кеминде бир атайын белгини (!@#$%^&*) камтышы керек.',
+                    repeatPassword: 'Сырсөздү кайталаңыз',
+                    restaurantLoadError: 'Ресторандарды жүктөөдө ката кетти.',
+                    menuLoadError: 'Менюну жүктөөдө ката кетти.',
+                    orderSuccess: 'Сиздин буйрутмаңыз кабыл алынды!',
+                    trackOrder: 'Буйрутманы көзөмөлдөө',
+                    orderStatus: {
+                        'pending': 'Күтүүдө',
+                        'preparing': 'Даярдалууда',
+                        'on_the_way': 'Жолдо',
+                        'delivered': 'Жеткизилди'
+                    },
+                    orderCreationError: 'Буйрутма түзүүдө ката кетти!',
+                    trackingError: 'Көзөмөлдөөдө ката кетти.',
+                    profileLoadError: 'Профиль маалыматтарын жүктөөдө ката кетти.',
+                    fullName: 'Толук аты-жөнү',
+                    phoneNumber: 'Телефон номери',
+                    address: 'Дарек',
+                    cancelButton: 'Жокко чыгаруу',
+                    saveButton: 'Сактоо',
+                    profileUpdateSuccess: 'Профиль ийгиликтүү жаңыртылды!',
+                    profileUpdateError: 'Профильди жаңыртууда ката кетти.',
+                    selectOnMapButton: 'Картадан тандоо',
+                    uploadPhoto: 'Сүрөт жүктөө'
+                },
+                'ru': {
+                    appName: 'Karakol Delivery', homeTitle: 'Самые вкусные блюда в один клик!', homeSubtitle: 'Закажите еду из вашего любимого ресторана.', viewRestaurants: 'Посмотреть рестораны',
+                    restaurantsTitle: 'Рестораны', menuTitle: 'Меню', addToCart: 'Добавить в корзину', orderPageTitle: 'Оформление заказа', orderSummary: 'Ваш заказ:',
+                    totalSum: 'Итого:', paymentType: 'Способ оплаты:', placeOrder: 'Разместить заказ', trackingTitle: 'Отслеживание заказа',
+                    courierStatus: 'Курьер в пути...', profileTitle: 'Мой профиль', orderHistory: 'История заказов', restaurant: 'Ресторан', courier: 'Курьер', status: 'Статус', backHome: 'Вернуться на главную',
+                    emptyCart: 'Корзина пуста, сначала выберите товары!', itemAdded: 'добавлено в корзину',
+                    loginTitle: 'Добро пожаловать!', loginSubtitle: 'Введите данные для входа', username: 'Имя пользователя', password: 'Пароль', loginButton: 'Войти',
+                    invalidLogin: 'Неверное имя пользователя или пароль!', logout: 'Выйти', loading: 'Загрузка...', homeButton: 'Главная', cartButton: 'Корзина', profileButton: 'Профиль',
+                    registerTitle: 'Регистрация', registerButton: 'Зарегистрироваться',
+                    registrationSuccess: 'Вы успешно зарегистрировались! Теперь можете войти.', footerText: 'Все права защищены.',
+                    accountExists: 'Аккаунт существует, пожалуйста, войдите.',
+                    passwordMismatch: 'Parollar ne sovpadayut.',
+                    passwordTooShort: 'Пароль должен содержать не менее 8 символов.',
+                    passwordNoUppercase: 'Пароль должен содержать хотя бы одну заглавную букву.',
+                    passwordNoLowercase: 'Пароль должен содержать хотя бы одну строчную букву.',
+                    passwordNoDigit: 'Пароль должен содержать хотя бы одну цифру.',
+                    passwordNoSpecialChar: 'Пароль должен содержать хотя бы один специальный символ (!@#$%^&*).',
+                    repeatPassword: 'Повторите пароль',
+                    restaurantLoadError: 'Ошибка при загрузке ресторанов.',
+                    menuLoadError: 'Ошибка при загрузке меню.',
+                    orderSuccess: 'Ваш заказ принят!',
+                    trackOrder: 'Отследить заказ',
+                    orderStatus: {
+                        'pending': 'Принято',
+                        'preparing': 'Готовится',
+                        'on_the_way': 'В пути',
+                        'delivered': 'Доставлено'
+                    },
+                    orderCreationError: 'Ошибка при создании заказа!',
+                    trackingError: 'Ошибка при отслеживании заказа.',
+                    profileLoadError: 'Ошибка при загрузке профиля.',
+                    fullName: 'Имя и фамилия',
+                    phoneNumber: 'Номер телефона',
+                    address: 'Адрес',
+                    cancelButton: 'Отмена',
+                    saveButton: 'Сохранить',
+                    profileUpdateSuccess: 'Профиль успешно обновлен!',
+                    profileUpdateError: 'Ошибка при обновлении профиля.',
+                    selectOnMapButton: 'Выбрать на карте',
+                    uploadPhoto: 'Загрузить фото'
+                },
+                'en': {
+                    appName: 'Karakol Delivery', homeTitle: 'The most delicious food in one click!', homeSubtitle: 'Order food from your favorite restaurant.', viewRestaurants: 'View Restaurants',
+                    restaurantsTitle: 'Restaurants', menuTitle: 'Menu', addToCart: 'Add to Cart', orderPageTitle: 'Checkout', orderSummary: 'Your Order:',
+                    totalSum: 'Total:', paymentType: 'Payment type:', placeOrder: 'Place Order', trackingTitle: 'Order Tracking',
+                    courierStatus: 'Courier is on the way...', profileTitle: 'My Profile', orderHistory: 'Order History', restaurant: 'Restaurant', courier: 'Courier', status: 'Status', backHome: 'Back to Home',
+                    emptyCart: 'Cart is empty, please select items first!', itemAdded: 'added to cart',
+                    loginTitle: 'Welcome!', loginSubtitle: 'Enter your details to log in', username: 'Username', password: 'Password', loginButton: 'Log In',
+                    invalidLogin: 'Invalid username or password!', logout: 'Log Out', loading: 'Loading...', homeButton: 'Home', cartButton: 'Cart', profileButton: 'Profile',
+                    registerTitle: 'Registration', registerButton: 'Register',
+                    registrationSuccess: 'You have successfully registered! You can log in now.', footerText: 'All rights reserved.',
+                    accountExists: 'Account exists, please log in.',
+                    passwordMismatch: 'Passwords do not match.',
+                    passwordTooShort: 'Password must be at least 8 characters long.',
+                    passwordNoUppercase: 'Password must contain at least one uppercase letter.',
+                    passwordNoLowercase: 'Password must contain at least one lowercase letter.',
+                    passwordNoDigit: 'Password must contain at least one digit.',
+                    passwordNoSpecialChar: 'Password must contain at least one special character (!@#$%^&*).',
+                    repeatPassword: 'Repeat password',
+                    restaurantLoadError: 'Error loading restaurants.',
+                    menuLoadError: 'Error loading menu.',
+                    orderSuccess: 'Your order has been placed!',
+                    trackOrder: 'Track Order',
+                    orderStatus: {
+                        'pending': 'Accepted',
+                        'preparing': 'Preparing',
+                        'on_the_way': 'On the way',
+                        'delivered': 'Delivered'
+                    },
+                    orderCreationError: 'Error creating order!',
+                    trackingError: 'Error tracking order.',
+                    profileLoadError: 'Error loading profile.',
+                    fullName: 'Full Name',
+                    phoneNumber: 'Phone Number',
+                    address: 'Address',
+                    cancelButton: 'Cancel',
+                    saveButton: 'Save',
+                    profileUpdateSuccess: 'Profile updated successfully!',
+                    profileUpdateError: 'Error updating profile.',
+                    selectOnMapButton: 'Select on Map',
+                    uploadPhoto: 'Upload Photo'
+                }
+            }
+        };
+
+        const DGIS_API_KEY = '91cf1308-c1e9-4caa-b7c8-9667c98e04ee'; // Replace with your actual 2GIS API Key
+
+        // Global function to update selected location details and input fields
+        async function updateSelectedLocation(lat, lng, addressText) {
+            appState.selectedLatitude = lat;
+            appState.selectedLongitude = lng;
+            appState.selectedAddressText = addressText; // Store the address text
+
+            getElement('profile-latitude').value = lat.toFixed(6);
+            getElement('profile-longitude').value = lng.toFixed(6);
+            getElement('profile-address').value = addressText; // Update the form input
+        }
+
+        // Yordamchi funksiyalar
+        const getElement = (id) => document.getElementById(id);
+        const getTranslation = (key) => appState.translations[appState.currentLang][key] || key;
+
+        // Функция для переключения видимости пароля
+        const togglePasswordVisibility = (inputId, toggleButtonId) => {
+            const passwordInput = getElement(inputId);
+            const toggleButton = getElement(toggleButtonId);
+            if (passwordInput && toggleButton) {
+                const icon = toggleButton.querySelector('i');
+                if (passwordInput.type === 'password') {
+                    passwordInput.type = 'text';
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                } else {
+                    passwordInput.type = 'password';
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                }
+            }
+        };
+
+        // Sahifalar orasida navigatsiya
+        const navigateTo = (page, data = null) => {
+            appState.currentPage = page;
+            appState.currentPageData = data;
+            renderPage();
+        };
+
+        // UI elementlarini yangilash
+        const updateUI = () => {
+            document.querySelectorAll('.lang-button').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.lang === appState.currentLang) {
+                    btn.classList.add('active');
+                }
+            });
+            getElement('cart-count').textContent = appState.cart.length;
+            getElement('app-name-display').textContent = getTranslation('appName');
+            getElement('home-btn').title = getTranslation('homeButton');
+            getElement('cart-btn').title = getTranslation('cartButton');
+            getElement('profile-btn').title = getTranslation('profileButton');
+            document.querySelector('footer').innerHTML = `&copy; 2024 Karakol Delivery. ${getTranslation('footerText')}.`;
+
+            const headerNav = getElement('header-nav');
+            if (appState.token) {
+                headerNav.style.display = 'flex';
+            } else {
+                headerNav.style.display = 'none';
+            }
+        };
+
+        // Fetch API yordamida ma'lumotlarni olish
+        const fetchData = async (endpoint, options = {}) => {
+            // Удаляем начальный 'api/' из endpoint, если он есть, так как apiBaseUrl уже содержит '/api/'
+            const cleanEndpoint = endpoint.startsWith('api/') ? endpoint.substring(4) : endpoint;
             
-            <div class="endpoint">
-                <strong>GET</strong> <a href="/api/categories/">/api/categories/</a> - Список категорий
+            let targetUrl;
+            // Определяем, относится ли эндпоинт к роутеру (ViewSets) или к прямым маршрутам (auth, profile)
+            if (['categories/', 'products/', 'orders/', 'delivery-zones/', 'delivery-persons/', 'restaurants/', 
+                 'delivery-tracking/', 'order-items/', 'ratings/', 'map/', 'payouts/', 'payments/', 
+                 'device-tokens/'].some(prefix => cleanEndpoint.startsWith(prefix))) {
+                targetUrl = `${appState.apiBaseUrl}endpoints/${cleanEndpoint}`;
+            } else {
+                targetUrl = `${appState.apiBaseUrl}${cleanEndpoint}`;
+            }
+
+            let headers = {
+                ...options.headers,
+            };
+
+            // Если тело запроса - FormData, браузер сам установит Content-Type
+            // Иначе устанавливаем Content-Type: application/json
+            if (!(options.body instanceof FormData)) {
+                headers['Content-Type'] = 'application/json';
+            }
+            
+            if (appState.token) {
+                headers['Authorization'] = `Bearer ${appState.token}`;
+                console.log('Token found, adding to headers:', appState.token);
+            } else {
+                console.log('No token found for request to:', targetUrl);
+            }
+
+            // Удаляем Content-Type, если он undefined (для FormData)
+            if (headers['Content-Type'] === undefined) {
+                delete headers['Content-Type'];
+            }
+
+            try {
+                console.log('Sending request to:', targetUrl, 'with headers:', headers);
+                const response = await fetch(targetUrl, { ...options, headers });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(JSON.stringify(errorData));
+                }
+                return await response.json();
+            } catch (error) {
+                console.error(`Fetch error for ${targetUrl}:`, error);
+                throw error;
+            }
+        };
+
+        // Sahifalarni render qilish funksiyalari
+        const renderLoginPage = () => {
+            const t = appState.translations[appState.currentLang];
+            getElement('main-content').innerHTML = `
+                <div class="bg-white rounded-xl shadow-lg p-8 max-w-sm mx-auto my-20">
+                    <div class="text-center mb-6">
+                        <i class="fa-solid fa-motorcycle text-primary text-4xl mb-2"></i>
+                        <h2 class="text-3xl font-bold">${t.loginTitle}</h2>
+                        <p class="text-gray-600 mb-4">${t.loginSubtitle}</p>
+                    </div>
+                    <form id="login-form">
+                        <div class="mb-4">
+                            <label for="username" class="block text-gray-700 font-medium mb-1">${t.username}</label>
+                            <input type="text" id="username" name="username" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary" required>
+                        </div>
+                        <div class="mb-6 relative">
+                            <label for="password" class="block text-gray-700 font-medium mb-1">${t.password}</label>
+                            <input type="password" id="password" name="password" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary pr-10" required>
+                            <button type="button" id="toggle-login-password" class="absolute inset-y-0 right-0 pr-3 flex items-center top-7 text-gray-400 hover:text-gray-600">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <button type="submit" class="w-full bg-primary text-white font-semibold py-3 rounded-full hover-bg-primary transition-colors">${t.loginButton}</button>
+                    </form>
+                    <p id="login-error-message" class="text-red-500 text-center mt-4 hidden">${t.invalidLogin}</p>
+                    <p class="text-center mt-4 text-gray-600">
+                        <a href="#" id="register-link" class="text-primary hover:underline">${t.registerButton}</a>
+                    </p>
+                </div>
+            `;
+            getElement('login-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const username = getElement('username').value;
+                const password = getElement('password').value;
+                const errorMessage = getElement('login-error-message');
+                errorMessage.classList.add('hidden');
+                
+                try {
+                    const data = await fetchData('token/', {
+                        method: 'POST',
+                        body: JSON.stringify({ username, password })
+                    });
+                    appState.token = data.access;
+                    localStorage.setItem('authToken', data.access);
+                    navigateTo('home');
+                } catch (error) {
+                    errorMessage.classList.remove('hidden');
+                    console.error('Login error:', error);
+                }
+            });
+            getElement('register-link').addEventListener('click', (e) => {
+                e.preventDefault();
+                navigateTo('register');
+            });
+
+            // Прикрепляем слушатель события для переключения видимости пароля в форме входа
+            getElement('toggle-login-password').addEventListener('click', () => togglePasswordVisibility('password', 'toggle-login-password'));
+        };
+
+        const renderRegisterPage = () => {
+            const t = appState.translations[appState.currentLang];
+            getElement('main-content').innerHTML = `
+                <div class="bg-white rounded-xl shadow-lg p-8 max-w-sm mx-auto my-10">
+                    <div class="text-center mb-6">
+                        <i class="fa-solid fa-user-plus text-primary text-4xl mb-2"></i>
+                        <h2 class="text-3xl font-bold">${t.registerTitle}</h2>
+                    </div>
+                    <form id="register-form">
+                        <div class="mb-4">
+                            <label for="reg-username" class="block text-gray-700 font-medium mb-1">${t.username}</label>
+                            <input type="text" id="reg-username" name="username" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary" required>
+                        </div>
+                        <div class="mb-4 relative">
+                            <label for="reg-password" class="block text-gray-700 font-medium mb-1">${t.password}</label>
+                            <input type="password" id="reg-password" name="password" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary pr-10" required>
+                            <button type="button" id="toggle-reg-password" class="absolute inset-y-0 right-0 pr-3 flex items-center top-7 text-gray-400 hover:text-gray-600">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                            <div id="password-requirements" class="text-sm mt-2 space-y-1">
+                                <p id="req-length" class="text-gray-500"><i class="fa-solid fa-circle-xmark mr-1"></i> ${t.passwordTooShort}</p>
+                                <p id="req-uppercase" class="text-gray-500"><i class="fa-solid fa-circle-xmark mr-1"></i> ${t.passwordNoUppercase}</p>
+                                <p id="req-lowercase" class="text-gray-500"><i class="fa-solid fa-circle-xmark mr-1"></i> ${t.passwordNoLowercase}</p>
+                                <p id="req-digit" class="text-gray-500"><i class="fa-solid fa-circle-xmark mr-1"></i> ${t.passwordNoDigit}</p>
+                                <p id="req-special" class="text-gray-500"><i class="fa-solid fa-circle-xmark mr-1"></i> ${t.passwordNoSpecialChar}</p>
+                            </div>
+                        </div>
+                        <div class="mb-6 relative">
+                            <label for="reg-password-confirm" class="block text-gray-700 font-medium mb-1">${t.repeatPassword}</label>
+                            <input type="password" id="reg-password-confirm" name="password2" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary pr-10" required>
+                            <button type="button" id="toggle-reg-password-confirm" class="absolute inset-y-0 right-0 pr-3 flex items-center top-7 text-gray-400 hover:text-gray-600">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <button type="submit" class="w-full bg-primary text-white font-semibold py-3 rounded-full hover-bg-primary transition-colors">${t.registerButton}</button>
+                    </form>
+                    <p id="register-error-message" class="text-red-500 text-center mt-4 hidden"></p>
+                    <p class="text-center mt-4 text-gray-600">
+                        <a href="#" id="login-link" class="text-primary hover:underline">Kirish sahifasiga qaytish</a>
+                    </p>
+                </div>
+            `;
+            getElement('register-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const username = getElement('reg-username').value;
+                const password = getElement('reg-password').value;
+                const password2 = getElement('reg-password-confirm').value;
+                const errorMessage = getElement('register-error-message');
+                errorMessage.classList.add('hidden');
+
+                if (password !== password2) {
+                    errorMessage.textContent = t.passwordMismatch;
+                    errorMessage.classList.remove('hidden');
+                    return;
+                }
+
+                // Password validation rules
+                if (password.length < 8) {
+                    errorMessage.textContent = t.passwordTooShort;
+                    errorMessage.classList.remove('hidden');
+                    return;
+                }
+                if (!/[A-Z]/.test(password)) {
+                    errorMessage.textContent = t.passwordNoUppercase;
+                    errorMessage.classList.remove('hidden');
+                    return;
+                }
+                if (!/[a-z]/.test(password)) {
+                    errorMessage.textContent = t.passwordNoLowercase;
+                    errorMessage.classList.remove('hidden');
+                    return;
+                }
+                if (!/[0-9]/.test(password)) {
+                    errorMessage.textContent = t.passwordNoDigit;
+                    errorMessage.classList.remove('hidden');
+                    return;
+                }
+                if (!/[!@#$%^&*]/.test(password)) {
+                    errorMessage.textContent = t.passwordNoSpecialChar;
+                    errorMessage.classList.remove('hidden');
+                    return;
+                }
+
+                try {
+                    const data = await fetchData('register/', {
+                        method: 'POST',
+                        body: JSON.stringify({ username, password, password2 })
+                    });
+                    // Автоматический вход после успешной регистрации
+                    appState.token = data.access; // Сохраняем access token
+                    localStorage.setItem('authToken', data.access);
+                    alert(t.registrationSuccess);
+                    navigateTo('home'); // Переходим на домашнюю страницу
+                } catch (error) {
+                    const errorObj = JSON.parse(error.message);
+                    if (errorObj.username && errorObj.username.includes('already exists')) {
+                        errorMessage.textContent = t.accountExists;
+                    } else if (errorObj.password) {
+                        // Обработка ошибок валидации пароля от бэкенда
+                        errorMessage.textContent = errorObj.password.join(' '); // Объединяем все сообщения об ошибках пароля
+                    } else {
+                        errorMessage.textContent = 'Ro‘yxatdan o‘tishda xato yuz berdi.'; // Общее сообщение об ошибке
+                    }
+                    errorMessage.classList.remove('hidden');
+                    console.error('Registration error:', error);
+                }
+            });
+            getElement('login-link').addEventListener('click', (e) => {
+                e.preventDefault();
+                navigateTo('login');
+            });
+
+            // Динамическая валидация пароля при вводе
+            const passwordInput = getElement('reg-password');
+            const passwordConfirmInput = getElement('reg-password-confirm');
+            const passwordRequirementsDiv = getElement('password-requirements');
+            const reqLength = getElement('req-length');
+            const reqUppercase = getElement('req-uppercase');
+            const reqLowercase = getElement('req-lowercase');
+            const reqDigit = getElement('req-digit');
+            const reqSpecial = getElement('req-special');
+
+            const updatePasswordRequirements = () => {
+                const password = passwordInput.value;
+                const check = (regex, reqElement, translationKey) => {
+                    if (regex.test(password)) {
+                        reqElement.classList.remove('text-gray-500', 'text-red-500');
+                        reqElement.classList.add('text-green-600');
+                        reqElement.querySelector('i').classList.remove('fa-circle-xmark');
+                        reqElement.querySelector('i').classList.add('fa-circle-check');
+                    } else {
+                        reqElement.classList.remove('text-green-600');
+                        reqElement.classList.add('text-gray-500'); // Сделать красным только при явной ошибке
+                        reqElement.querySelector('i').classList.remove('fa-circle-check');
+                        reqElement.querySelector('i').classList.add('fa-circle-xmark');
+                    }
+                };
+
+                check(/.{8,}/, reqLength, 'passwordTooShort');
+                check(/[A-Z]/, reqUppercase, 'passwordNoUppercase');
+                check(/[a-z]/, reqLowercase, 'passwordNoLowercase');
+                check(/[0-9]/, reqDigit, 'passwordNoDigit');
+                check(/[!@#$%^&*]/, reqSpecial, 'passwordNoSpecialChar');
+            };
+
+            passwordInput.addEventListener('input', updatePasswordRequirements);
+            updatePasswordRequirements(); // Initial check on page load
+
+            // Прикрепляем слушатели событий для переключения видимости пароля
+            getElement('toggle-reg-password').addEventListener('click', () => togglePasswordVisibility('reg-password', 'toggle-reg-password'));
+            getElement('toggle-reg-password-confirm').addEventListener('click', () => togglePasswordVisibility('reg-password-confirm', 'toggle-reg-password-confirm'));
+        };
+
+        const renderHomePage = () => {
+            const t = appState.translations[appState.currentLang];
+            getElement('main-content').innerHTML = `
+                <div class="text-center py-20 px-4">
+                    <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight mb-4">${t.homeTitle}</h1>
+                    <p class="text-lg md:text-xl text-gray-600 mb-8">${t.homeSubtitle}</p>
+                    <button id="view-restaurants-btn" class="bg-primary text-white font-semibold py-3 px-8 rounded-full shadow-lg hover-bg-primary transition-colors text-lg">
+                        ${t.viewRestaurants}
+                    </button>
+                </div>
+            `;
+            getElement('view-restaurants-btn').addEventListener('click', () => navigateTo('restaurants'));
+        };
+
+        const renderRestaurantsPage = async () => {
+            const t = appState.translations[appState.currentLang];
+            const mainContent = getElement('main-content');
+            mainContent.innerHTML = `<p class="text-center text-xl text-gray-500 mt-20">${t.loading}</p>`;
+
+            try {
+                const restaurantsData = await fetchData('restaurants/');
+                console.log('Fetched restaurants data:', restaurantsData); // Для отладки
+                const restaurants = restaurantsData.results; // Извлекаем массив из поля 'results'
+                appState.cachedData.restaurants = restaurants;
+                const restaurantListHtml = restaurants.map(rest => `
+                    <div class="bg-white rounded-xl shadow-md p-4 cursor-pointer hover:shadow-xl transition-shadow" onclick="navigateTo('menu', {id: ${rest.id}, name: '${rest.name}'})">
+                        <img src="https://placehold.co/400x250/fce7f3/ec4899?text=${rest.name}" alt="${rest.name}" class="rounded-lg w-full h-40 object-cover mb-4">
+                        <h3 class="text-xl font-semibold">${rest.name}</h3>
+                    </div>
+                `).join('');
+                
+                mainContent.innerHTML = `
+      <h2 class="text-3xl font-bold mb-6 text-center">${t.restaurantsTitle}</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">${restaurantListHtml}</div>
+                `;
+            } catch (error) {
+                mainContent.innerHTML = `<p class="text-center text-red-500 mt-20">${getTranslation('restaurantLoadError')}</p>`;
+            }
+        };
+
+        const renderMenuPage = async (data) => {
+            const t = appState.translations[appState.currentLang];
+            const mainContent = getElement('main-content');
+            mainContent.innerHTML = `<p class="text-center text-xl text-gray-500 mt-20">${t.loading}</p>`;
+            
+            try {
+                const menuData = await fetchData(`products/?restaurant=${data.id}`);
+                console.log('Fetched menu data:', menuData); // Для отладки
+                const menu = menuData.results; // Извлекаем массив из поля 'results'
+                appState.cachedData.products = menu;
+                const menuHtml = menu.map(item => `
+                    <div class="bg-white rounded-xl shadow-md p-4 flex flex-col items-center text-center">
+                        <h4 class="text-lg font-semibold">${item.name}</h4>
+                        <p class="text-gray-600 mb-2">${item.description || ''}</p>
+                        <p class="text-green-600 font-bold text-xl">${item.price.toLocaleString()} ${appState.currentCurrency}</p>
+                        <button class="add-to-cart-btn mt-4 w-full bg-orange-500 text-white rounded-full py-2 hover:bg-orange-600 transition-colors" data-item-id="${item.id}">${t.addToCart}</button>
+                    </div>
+                `).join('');
+
+                mainContent.innerHTML = `
+                    <h2 class="text-3xl font-bold mb-6 text-center">${data.name} ${t.menuTitle}</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">${menuHtml}</div>
+                `;
+
+                document.querySelectorAll('.add-to-cart-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const itemId = parseInt(e.target.dataset.itemId);
+                        const item = appState.cachedData.products.find(m => m.id === itemId);
+                        if (item) {
+                            appState.cart.push(item);
+                            alert(`${item.name} ${t.itemAdded}!`);
+                            updateUI();
+                        }
+                    });
+                });
+            } catch (error) {
+                mainContent.innerHTML = `<p class="text-center text-red-500 mt-20">${getTranslation('menuLoadError')}</p>`;
+            }
+        };
+
+        const renderOrderPage = () => {
+            const t = appState.translations[appState.currentLang];
+            if (appState.cart.length === 0) {
+                alert(t.emptyCart);
+                navigateTo('restaurants');
+                return;
+            }
+            const total = appState.cart.reduce((sum, item) => sum + item.price, 0);
+            const cartHtml = appState.cart.map(item => `
+                <div class="flex justify-between py-2 border-b border-gray-100">
+                    <span>${item.name}</span>
+                    <span>${item.price.toLocaleString()} ${appState.currentCurrency}</span>
+                </div>
+            `).join('');
+
+            getElement('main-content').innerHTML = `
+                <div class="bg-white rounded-xl shadow-md p-6 max-w-md mx-auto">
+                    <h2 class="text-3xl font-bold mb-6 text-center">${t.orderPageTitle}</h2>
+                    <h3 class="text-xl font-semibold mb-2">${t.orderSummary}</h3>
+                    ${cartHtml}
+                    <div class="text-2xl font-bold flex justify-between py-4 border-t-2 border-gray-200 mt-4">
+                        <span>${t.totalSum}</span>
+                        <span class="text-green-600">${total.toLocaleString()} ${appState.currentCurrency}</span>
+                    </div>
+                    <label for="payment-type" class="block text-gray-700 font-medium mt-6 mb-2">${t.paymentType}</label>
+                    <select id="payment-type" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="cash">Naqd pul / Наличные / Cash</option>
+                        <option value="card">Bank kartasi / Банковская карта / Credit card</option>
+                    </select>
+                    <button id="place-order-btn" class="w-full bg-primary text-white rounded-full py-3 mt-8 font-semibold hover-bg-primary transition-colors">${t.placeOrder}</button>
+            </div>
+            `;
+            getElement('place-order-btn').addEventListener('click', async () => {
+                const orderItems = appState.cart.map(item => ({ product: item.id, quantity: 1 }));
+                try {
+                    const orderData = await fetchData('orders/', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            items: orderItems,
+                        })
+                    });
+                    alert(t.orderSuccess);
+                    appState.cart = [];
+                    appState.cachedData.orders.push(orderData); // Buyurtmani keshga qo'shish
+                    updateUI();
+                    navigateTo('tracking', { orderId: orderData.id });
+                } catch (error) {
+                    alert(t.orderCreationError); // Используем переведенное сообщение
+                    console.error('Order creation error:', error);
+                }
+            });
+        };
+
+        const renderTrackingPage = async (data) => {
+            const t = appState.translations[appState.currentLang];
+            const mainContent = getElement('main-content');
+            mainContent.innerHTML = `<p class="text-center text-xl text-gray-500 mt-20">${t.loading}</p>`;
+            
+            // Simulyatsiya: API'dan real vaqtda yangilash
+            const trackOrder = async () => {
+                try {
+                    const order = await fetchData(`orders/${data.orderId}/`);
+                    
+                    const statusText = t.orderStatus[order.status] || order.status;
+                    mainContent.innerHTML = `
+                        <div class="bg-white rounded-xl shadow-md p-6 text-center max-w-md mx-auto">
+                            <h2 class="text-3xl font-bold mb-4">${t.trackingTitle}</h2>
+                            <p class="text-lg text-gray-600 mb-2">Buyurtma №${order.id}</p>
+                            <p class="text-2xl font-semibold mb-6 text-primary">${statusText}</p>
+                            <div class="w-full h-60 bg-gray-200 rounded-lg relative overflow-hidden flex items-center justify-center">
+                                <i class="fa-solid fa-motorcycle text-4xl text-primary animate-pulse"></i>
+                            </div>
+                            <button onclick="navigateTo('home')" class="w-full bg-gray-500 text-white rounded-full py-3 mt-8 font-semibold hover:bg-gray-600 transition-colors">${t.backHome}</button>
+            </div>
+                    `;
+                  
+    
+                    if (order.status !== 'delivered') {
+                        setTimeout(trackOrder, 5000);
+                    }
+                } catch (error) {
+                    mainContent.innerHTML = `<p class="text-center text-red-500 mt-20">${getTranslation('trackingError')}</p>`;
+                    console.error('Tracking error:', error);
+                }
+            };
+
+            trackOrder();
+        };
+
+        const renderProfilePage = async () => {
+            const t = appState.translations[appState.currentLang];
+            const mainContent = getElement('main-content');
+
+            try {
+                const profileData = await fetchData('user-profile/', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${appState.token}`,
+                    },
+                });
+
+                const user = profileData || {};
+                let profile = user.profile || {};
+                let username = user.username || '';
+                let first_name = user.first_name || '';
+                let last_name = user.last_name || '';
+                let phoneNumber = profile.phone_number || '';
+                let address = profile.address || '';
+
+                // Initialize appState with existing profile coordinates and address
+                appState.selectedLatitude = profile.latitude || null;
+                appState.selectedLongitude = profile.longitude || null;
+                appState.selectedAddressText = address; // Set initial address text
+
+                // Fetch orders for order history
+                let orders = [];
+                try {
+                    const ordersData = await fetchData('orders/', {
+                        headers: {
+                            'Authorization': `Bearer ${appState.token}`,
+                        },
+                    });
+                    orders = ordersData.results || [];
+                    appState.cachedData.orders = orders; // Cache orders
+                } catch (orderError) {
+                    console.error('Error fetching orders for profile:', orderError);
+                }
+
+                const orderHistoryHtml = orders.length > 0
+                    ? orders.map(order => `
+                        <div class="bg-gray-50 p-4 rounded-lg shadow-sm mb-3">
+                            <p class="font-semibold">${t.restaurant}: ${order.restaurant_info ? order.restaurant_info.name : 'N/A'}</p>
+                            <p>${t.status}: ${t.orderStatus[order.status] || order.status}</p>
+                            <p>${t.totalSum}: ${order.total_amount.toLocaleString()} ${appState.currentCurrency}</p>
+                            <button onclick="navigateTo('tracking', { orderId: ${order.id} })" class="text-primary hover:underline mt-2">${t.trackOrder}</button>
+                        </div>
+                    `).join('')
+                    : `<p>${t.noOrdersYet}</p>`;
+
+            mainContent.innerHTML = `
+                <div class="bg-white rounded-xl shadow-md p-6 max-w-xl mx-auto">
+
+                <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-3xl font-bold">${t.profileTitle}</h2>
+                        <button id="logout-btn" class="text-sm text-gray-500 hover:text-red-500 transition-colors">${t.logout}</button>
             </div>
             
-            <div class="endpoint">
-                <strong>GET</strong> <a href="/api/products/">/api/products/</a> - Список продуктов
+                        <div class="text-center mb-6">
+                            <div class="w-24 h-24 bg-pink-200 rounded-full flex items-center justify-center text-5xl text-primary mx-auto mb-2 relative overflow-hidden">
+                                <img id="profile-picture-preview" src="${profile && profile.profile_picture ? profile.profile_picture : 'https://placehold.co/96x96/fce7f3/ec4899?text=👤'}" alt="Profile Picture" class="w-full h-full object-cover">
+                                <label for="profile-picture-upload" class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-xs opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
+                                    ${t.uploadPhoto || 'Загрузить фото'}
+                                </label>
+                                <input type="file" id="profile-picture-upload" accept="image/*" class="hidden">
+                            </div>
+                            <p class="text-xl font-bold">${phoneNumber || username}</p>
+                            <p class="text-gray-600">${first_name || ''} ${last_name || ''}</p>
             </div>
             
-            <div class="endpoint">
-                <strong>GET</strong> <a href="/api/orders/">/api/orders/</a> - Список заказов (требует авторизации)
+                        <form id="profile-form">
+                            <div class="mb-4">
+                                <label for="profile-fullname" class="block text-gray-700 font-medium mb-1">${t.fullName}</label>
+                                <input type="text" id="profile-fullname" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary" value="${first_name || ''} ${last_name || ''}">
+                            </div>
+                            <div class="mb-4">
+                                <label for="profile-phone" class="block text-gray-700 font-medium mb-1">${t.phoneNumber}</label>
+                                <div class="flex">
+                                    <span class="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">+996</span>
+                                    <input type="text" id="profile-phone" class="flex-1 p-3 rounded-r-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary" value="${phoneNumber.startsWith('+996') ? phoneNumber.substring(4) : phoneNumber}">
+                                </div>
+                            </div>
+                            <div class="mb-6">
+                                <label for="profile-address" class="block text-gray-700 font-medium mb-1">${t.address}</label>
+                                <div class="relative">
+                                    <input type="text" id="profile-address" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary" value="${appState.selectedAddressText}">
+                                    <div id="address-autocomplete-results" class="absolute z-10 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 hidden">
+                                        <!-- Результаты автозаполнения будут здесь -->
             </div>
+                                <input type="hidden" id="profile-latitude" value="${appState.selectedLatitude || ''}">
+                                <input type="hidden" id="profile-longitude" value="${appState.selectedLongitude || ''}">
         </div>
-        
-        <div class="api-section">
-            <h2>🔧 Администрирование</h2>
-            <p>Управление данными через Django Admin:</p>
-            <a href="/admin/" class="admin-link">Django Admin Panel</a>
+                            </div>
+
+                            <div class="flex justify-end space-x-4 mb-6">
+                                <button type="button" id="cancel-profile-btn" class="bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-full hover:bg-gray-300 transition-colors">${t.cancelButton}</button>
+                                <button type="submit" id="save-profile-btn" class="bg-primary text-white font-semibold py-3 px-6 rounded-full hover-bg-primary transition-colors">${t.saveButton}</button>
+                            </div>
+                        </form>
+
+                        <h3 class="text-xl font-semibold mb-4">${t.orderHistory}</h3>
+                        <div>${orderHistoryHtml}</div>
         </div>
-        
-        <div class="api-section">
-            <h2>📋 Модели данных</h2>
-            <ul>
-                <li><strong>Category</strong> - Категории товаров</li>
-                <li><strong>Product</strong> - Товары с ценами и описаниями</li>
-                <li><strong>Order</strong> - Заказы клиентов</li>
-                <li><strong>OrderItem</strong> - Элементы заказов</li>
-            </ul>
+                `;
+
+                const phoneInput = getElement('profile-phone');
+                if (phoneInput) {
+                    phoneInput.addEventListener('input', (e) => {
+                        let value = e.target.value.replace(/\D/g, ''); // Удаляем все нецифровые символы
+                        let formattedValue = '';
+
+                        if (value.length > 0) {
+                            formattedValue += '(' + value.substring(0, 3);
+                        }
+                        if (value.length > 3) {
+                            formattedValue += ') ' + value.substring(3, 6);
+                        }
+                        if (value.length > 6) {
+                            formattedValue += '-' + value.substring(6, 9);
+                        }
+                        e.target.value = formattedValue;
+                    });
+
+                    // Начальное форматирование при загрузке
+                    let initialValue = phoneInput.value.replace(/\D/g, ''); // Получаем только цифры
+                    let formattedInitialValue = '';
+                    if (initialValue.length > 0) {
+                        formattedInitialValue += '(' + initialValue.substring(0, 3);
+                    }
+                    if (initialValue.length > 3) {
+                        formattedInitialValue += ') ' + initialValue.substring(3, 6);
+                    }
+                    if (initialValue.length > 6) {
+                        formattedInitialValue += '-' + initialValue.substring(6, 9);
+                    }
+                    phoneInput.value = formattedInitialValue;
+                }
+
+                const addressInput = getElement('profile-address');
+                const autocompleteResultsDiv = getElement('address-autocomplete-results');
+                let searchTimeout;
+
+                addressInput.addEventListener('input', () => {
+                    clearTimeout(searchTimeout);
+                    const query = addressInput.value.trim();
+
+                    // Clear coordinates if user manually edits address after selection
+                    appState.selectedLatitude = null;
+                    appState.selectedLongitude = null;
+                    getElement('profile-latitude').value = '';
+                    getElement('profile-longitude').value = '';
+
+                    if (query.length > 2) {
+                        searchTimeout = setTimeout(async () => {
+                            try {
+                                const response = await fetch(`https://catalog.api.2gis.com/3.0/search?q=${query}&type=address&key=${DGIS_API_KEY}&fields=items.point,items.full_address`);
+                                const data = await response.json();
+                                console.log('2GIS Autocomplete Response:', data);
+                                if (data.result && data.result.items && data.result.items.length > 0) {
+                                    autocompleteResultsDiv.innerHTML = data.result.items.map(item => `
+                                        <div class="p-3 hover:bg-gray-100 cursor-pointer text-gray-800"
+                                             data-lat="${item.point.lat}"
+                                             data-lng="${item.point.lon}"
+                                             data-address="${item.full_address}">
+                                            ${item.full_address}
+                                        </div>
+                                    `).join('');
+                                    autocompleteResultsDiv.classList.remove('hidden');
+                            } else {
+                                    autocompleteResultsDiv.innerHTML = '';
+                                    autocompleteResultsDiv.classList.add('hidden');
+                            }
+                            } catch (error) {
+                                console.error('Error during address search:', error);
+                                autocompleteResultsDiv.innerHTML = '';
+                                autocompleteResultsDiv.classList.add('hidden');
+                        }
+                        }, 500);
+                    } else {
+                        autocompleteResultsDiv.innerHTML = '';
+                        autocompleteResultsDiv.classList.add('hidden');
+                    }
+                });
+
+                // Close autocomplete results when clicking outside
+                document.addEventListener('click', (event) => {
+                    if (!addressInput.contains(event.target) && !autocompleteResultsDiv.contains(event.target)) {
+                        autocompleteResultsDiv.classList.add('hidden');
+                    }
+                });
+
+                autocompleteResultsDiv.addEventListener('click', (event) => {
+                    const selectedItem = event.target.closest('div[data-lat]');
+                    if (selectedItem) {
+                        const lat = parseFloat(selectedItem.dataset.lat);
+                        const lng = parseFloat(selectedItem.dataset.lng);
+                        const addressText = selectedItem.dataset.address;
+
+                        updateSelectedLocation(lat, lng, addressText); // Update input fields with selected data
+                        autocompleteResultsDiv.classList.add('hidden'); // Hide autocomplete list
+                        console.log('Selected address:', addressText, 'Lat:', lat, 'Lng:', lng);
+                    }
+                });
+
+                getElement('logout-btn').addEventListener('click', () => {
+                    appState.token = null;
+                    localStorage.removeItem('authToken');
+                    navigateTo('login');
+                });
+
+                getElement('profile-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const fullName = getElement('profile-fullname').value.trim();
+                    let phone = getElement('profile-phone').value.trim();
+                    const newAddress = getElement('profile-address').value.trim();
+
+                    console.log('Submitting profile form. Address:', newAddress, 'Lat:', appState.selectedLatitude, 'Lng:', appState.selectedLongitude);
+
+                    if (phone && !phone.startsWith('+996')) {
+                        phone = '+996' + phone;
+                    } else if (phone === '+996') {
+                        phone = '';
+                    }
+
+                    let firstName = '';
+                    let lastName = '';
+                    const nameParts = fullName.split(' ');
+                    if (nameParts.length > 0) {
+                        firstName = nameParts[0];
+                        lastName = nameParts.slice(1).join(' ');
+                    }
+
+                    const formData = new FormData();
+                    formData.append('first_name', firstName);
+                    formData.append('last_name', lastName);
+                    formData.append('profile.phone_number', phone);
+                    formData.append('profile.address', newAddress);
+                    formData.append('profile.latitude', appState.selectedLatitude || '');
+                    formData.append('profile.longitude', appState.selectedLongitude || '');
+
+                    const profilePictureFile = getElement('profile-picture-upload').files[0];
+                    if (profilePictureFile) {
+                        formData.append('profile.profile_picture', profilePictureFile);
+                    }
+
+                    try {
+                        await fetchData('user-profile/', {
+                            method: 'PATCH',
+                            body: formData,
+                            headers: {
+                                'Authorization': `Bearer ${appState.token}`,
+                            }
+                        });
+                        alert(t.profileUpdateSuccess);
+                        navigateTo('profile');
+                    } catch (error) {
+                        alert(t.profileUpdateError);
+                        console.error('Profile update error:', error);
+                    }
+                });
+
+                getElement('cancel-profile-btn').addEventListener('click', () => {
+                    navigateTo('profile');
+                });
+
+                getElement('profile-picture-upload').addEventListener('change', (event) => {
+                    const [file] = event.target.files;
+                    if (file) {
+                        getElement('profile-picture-preview').src = URL.createObjectURL(file);
+                    }
+                });
+
+            } catch (error) {
+                mainContent.innerHTML = `<p class="text-center text-red-500 mt-20">${getTranslation('profileLoadError')}</p>`;
+                console.error('Profile fetch error:', error);
+            }
+        };
+
+        const renderPage = () => {
+            if (appState.token && appState.currentPage === 'login') {
+                appState.currentPage = 'home';
+            } else if (!appState.token && appState.currentPage !== 'register') {
+                appState.currentPage = 'login';
+            }
+
+            switch (appState.currentPage) {
+                case 'login':
+                    renderLoginPage();
+                    break;
+                case 'register':
+                    renderRegisterPage();
+                    break;
+                case 'home':
+                    renderHomePage();
+                    break;
+                case 'restaurants':
+                    renderRestaurantsPage();
+                    break;
+                case 'menu':
+                    renderMenuPage(appState.currentPageData);
+                    break;
+                case 'order':
+                    renderOrderPage();
+                    break;
+                case 'tracking':
+                    renderTrackingPage(appState.currentPageData);
+                    break;
+                case 'profile':
+                    renderProfilePage();
+                    break;
+                default:
+                    renderHomePage();
+            }
+            updateUI();
+        };
+
+        window.onload = () => {
+            const storedToken = localStorage.getItem('authToken');
+            console.log('window.onload: Загружен токен из localStorage:', storedToken); // Debugging log
+            if (storedToken) {
+                appState.token = storedToken;
+                navigateTo('home');
+            } else {
+                navigateTo('login');
+            }
+
+            document.querySelectorAll('.lang-button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    appState.currentLang = btn.dataset.lang;
+                    appState.currentCurrency = (appState.currentLang === 'kg' ? 'KGS' : (appState.currentLang === 'ru' ? 'RUB' : 'USD'));
+                    renderPage();
+                });
+            });
+
+            document.getElementById('home-btn').addEventListener('click', () => navigateTo('home'));
+            document.getElementById('cart-btn').addEventListener('click', () => navigateTo('order'));
+            document.getElementById('profile-btn').addEventListener('click', () => navigateTo('profile'));
+        };
+    </script>
+
+    <!-- Header va navigatsiya paneli -->
+    <header class="bg-white shadow-md sticky top-0 z-50">
+        <div class="container flex justify-between items-center py-4">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-motorcycle text-primary text-2xl"></i>
+                <span class="text-2xl font-bold text-gray-900" id="app-name-display">Karakol Delivery</span>
+            </div>
+            <nav id="header-nav" class="flex items-center space-x-4" style="display: none;">
+                <button id="home-btn" class="text-gray-600 hover:text-primary transition-colors" title="${getTranslation('homeButton')}"><i class="fa-solid fa-home text-xl"></i></button>
+                <button id="cart-btn" class="relative text-gray-600 hover:text-primary transition-colors" title="${getTranslation('cartButton')}">
+                    <i class="fa-solid fa-shopping-cart text-xl"></i>
+                    <span id="cart-count" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">0</span>
+                </button>
+                <button id="profile-btn" class="text-gray-600 hover:text-primary transition-colors" title="${getTranslation('profileButton')}"><i class="fa-solid fa-user text-xl"></i></button>
+            </nav>
         </div>
+        <div class="flex justify-center py-2 bg-gray-100 border-t">
+            <button class="lang-button text-sm px-4 py-1 rounded-full mx-1 transition-colors" data-lang="kg">Кыргызча</button>
+            <button class="lang-button text-sm px-4 py-1 rounded-full mx-1 transition-colors" data-lang="ru">Русский</button>
+            <button class="lang-button text-sm px-4 py-1 rounded-full mx-1 transition-colors" data-lang="en">English</button>
     </div>
+    </header>
+
+    <!-- Asosiy kontent render qilinadigan joy -->
+    <main id="main-content" class="container py-8 flex-grow"></main>
+
+    <footer class="text-center py-4 text-gray-500 text-sm">
+        &copy; 2025 Karakol Delivery. ${getTranslation('footerText')}.
+    </footer>
+
 </body>
 </html> 

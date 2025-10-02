@@ -1,205 +1,492 @@
-from django.db import models
-from django.contrib.auth.models import User
-from django.core.validators import MinValueValidator, MaxValueValidator
+import logging
 import uuid
 
-class Category(models.Model):
-    name = models.CharField(max_length=100)
-    description = models.TextField(blank=True)
-    
+from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db import models
+from django.core.cache import cache
+from django.utils import timezone
+from django.db.models import Index, Q
+from django.core.validators import (
+    MinValueValidator,
+    MaxValueValidator,
+    RegexValidator,
+    EmailValidator,
+    FileExtensionValidator
+)
+from django.utils.translation import gettext_lazy as _
+from django.core.exceptions import ValidationError
+from django.db.models import JSONField
+from datetime import date
+from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import UserManager
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+
+logger = logging.getLogger(__name__)
+
+# Базовая модель с общими методами
+class BaseModel(models.Model):
+    """
+    Абстрактная базовая модель с общими полями
+    """
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        abstract = True
+
+class Category(BaseModel):
+    """
+    Категории с поддержкой перевода
+    """
+    name = models.CharField(
+        max_length=100, 
+        unique=True
+    )
+    description = models.TextField(
+        blank=True, 
+        null=True
+    )
+
     def __str__(self):
         return self.name
-    
+
     class Meta:
-        verbose_name_plural = "Categories"
+        verbose_name = _('Category')
+        verbose_name_plural = _('Categories')
+
+class Restaurant(BaseModel):
+    """
+    Рестораны с поддержкой перевода
+    """
+    name = models.CharField(
+        max_length=200
+    )
+    description = models.TextField(
+        blank=True, 
+        null=True
+    )
+    partner_user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='restaurant_partner'
+    )
+    avg_rating = models.FloatField(
+        default=0.0,
+        validators=[
+            MinValueValidator(0.0),
+            MaxValueValidator(5.0)
+        ]
+    )
+    latitude = models.DecimalField(
+        max_digits=9, 
+        decimal_places=6, 
+        null=True, 
+        blank=True
+    )
+    longitude = models.DecimalField(
+        max_digits=9, 
+        decimal_places=6, 
+        null=True, 
+        blank=True
+    )
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = _('Restaurant')
+        verbose_name_plural = _('Restaurants')
 
 class Product(models.Model):
-    name = models.CharField(max_length=200)
-    description = models.TextField()
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-    category = models.ForeignKey(Category, on_delete=models.CASCADE)
-    image = models.ImageField(upload_to='products/', blank=True, null=True)
-    available = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
+    """
+    Продукты с поддержкой перевода
+    """
+    name = models.CharField(
+        max_length=200
+    )
+    description = models.TextField(
+        blank=True, 
+        null=True
+    )
+    price = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        validators=[MinValueValidator(0)]
+    )
+    restaurant = models.ForeignKey(
+        'Restaurant', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        related_name='products'
+    )
+    category = models.ForeignKey(
+        'Category', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        related_name='products'
+    )
+    is_available = models.BooleanField(
+        default=True, 
+        db_index=True
+    )
+
     def __str__(self):
         return self.name
+
+    class Meta:
+        verbose_name = _('Product')
+        verbose_name_plural = _('Products')
+
+class Order(models.Model):
+    """
+    Заказы с локализованными статусами
+    """
+    STATUS_CHOICES = [
+        ('pending', _('Pending')),
+        ('confirmed', _('Confirmed')),
+        ('preparing', _('Preparing')),
+        ('out_for_delivery', _('Out for Delivery')),
+        ('delivered', _('Delivered')),
+        ('cancelled', _('Cancelled'))
+    ]
+
+    PAYMENT_METHODS = [
+        ('cash', _('Cash')),
+        ('card', _('Card')),
+        ('online', _('Online Payment'))
+    ]
+
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='orders'
+    )
+    restaurant = models.ForeignKey(
+        'Restaurant', 
+        on_delete=models.SET_NULL, 
+        null=True,
+        related_name='orders'
+    )
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default='pending',
+        db_index=True
+    )
+    payment_method = models.CharField(
+        max_length=20, 
+        choices=PAYMENT_METHODS,
+        db_index=True
+    )
+    delivery_address = models.TextField()
+    phone_number = models.CharField(
+        max_length=15,
+        validators=[
+            RegexValidator(
+                regex=r'^\+?1?\d{9,15}$', 
+                message=_("Phone number must be entered in the format: '+999999999'.")
+            )
+        ]
+    )
+    total_amount = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        validators=[MinValueValidator(0)]
+    )
+    courier_fee = models.DecimalField(
+        max_digits=6, 
+        decimal_places=2, 
+        default=0
+    )
+    service_fee = models.DecimalField(
+        max_digits=6, 
+        decimal_places=2, 
+        default=0
+    )
+    actual_delivery_time = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(
+        default=timezone.now
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True
+    )
+
+    def __str__(self):
+        return f"{_('Order')} {self.id} - {self.get_status_display()}"
+
+    class Meta:
+        verbose_name = _('Order')
+        verbose_name_plural = _('Orders')
+        ordering = ['-created_at']
+
+    def clean(self):
+        """
+        Custom validation method for Order model
+        Ensures order integrity and business rules
+        """
+        # Validate total amount is greater than zero
+        if self.total_amount <= 0:
+            raise ValidationError(_("Total amount must be greater than zero"))
+        
+        # Ensure delivery address is not empty
+        if not self.delivery_address or len(self.delivery_address.strip()) == 0:
+            raise ValidationError(_("Delivery address cannot be empty"))
+        
+        # Validate phone number format
+        phone_validator = RegexValidator(
+            regex=r'^\+?1?\d{9,15}$', 
+            message=_("Phone number must be entered in the format: '+999999999'.")
+        )
+        try:
+            phone_validator(self.phone_number)
+        except ValidationError as e:
+            raise ValidationError({"phone_number": e.message})
+        
+        # Validate courier and service fees are non-negative
+        if self.courier_fee < 0 or self.service_fee < 0:
+            raise ValidationError(_("Courier and service fees must be non-negative"))
+        
+        # Ensure order status is valid
+        valid_statuses = [status[0] for status in self.STATUS_CHOICES]
+        if self.status not in valid_statuses:
+            raise ValidationError(_("Invalid order status"))
+        
+        # Validate payment method
+        valid_payment_methods = [method[0] for method in self.PAYMENT_METHODS]
+        if self.payment_method not in valid_payment_methods:
+            raise ValidationError(_("Invalid payment method"))
+
+    def save(self, *args, **kwargs):
+        """
+        Override save method to perform validation before saving
+        """
+        self.full_clean()
+        super().save(*args, **kwargs)
+
 
 class DeliveryZone(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     delivery_fee = models.DecimalField(max_digits=6, decimal_places=2, default=0.00)
-    estimated_time = models.IntegerField(help_text="Время доставки в минутах", default=30)
+    estimated_time = models.IntegerField(
+        help_text="Время доставки в минутах",
+        default=30,
+    )
     is_active = models.BooleanField(default=True)
     avg_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
-    
+
     def __str__(self):
         return self.name
 
+
 class UserProfile(models.Model):
     ROLE_CHOICES = [
-        ('client', 'Клиент'),
-        ('courier', 'Курьер'),
-        ('admin', 'Админ'),
-        ('restaurant_partner', 'Партнёр-магазин'),
+        ("client", "Клиент"),
+        ("courier", "Курьер"),
+        ("admin", "Администратор"),
+        ("restaurant_partner", "Партнёр-ресторан"),
     ]
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='client')
-    phone_number = models.CharField(max_length=20, blank=True, null=True)
+
+    LANGUAGE_CHOICES = [
+        ('ru', 'Русский'),
+        ('ky', 'Кыргызский'),
+        ('en', 'Английский')
+    ]
+
+    NOTIFICATION_CHOICES = [
+        ('email', 'Email'),
+        ('sms', 'SMS'),
+        ('push', 'Push-уведомления'),
+        ('none', 'Не уведомлять')
+    ]
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="client")
+    
+    # Новые поля с валидацией
+    email = models.EmailField(
+        blank=True, 
+        null=True, 
+        unique=True, 
+        validators=[EmailValidator()]
+    )
+    
+    def validate_date_of_birth(value):
+        """
+        Валидатор даты рождения
+        """
+        if value and value > date.today():
+            raise ValidationError("Дата рождения не может быть в будущем")
+        
+        # Проверка возраста (не младше 14 лет)
+        age = (date.today() - value).days / 365.25
+        if age < 14:
+            raise ValidationError("Минимальный возраст - 14 лет")
+    
+    date_of_birth = models.DateField(
+        blank=True, 
+        null=True, 
+        validators=[validate_date_of_birth]
+    )
+    
+    preferred_language = models.CharField(
+        max_length=10, 
+        choices=LANGUAGE_CHOICES, 
+        default='ru'
+    )
+    
+    notification_settings = models.JSONField(
+        blank=True,
+        null=True,
+        default=list
+    )
+    
+    phone_number = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        validators=[
+            RegexValidator(
+                regex=r'^\+?1?\d{9,15}$',
+                message="Номер телефона должен быть в международном формате, например +996555123456"
+            )
+        ]
+    )
+ 
+    address = models.TextField(blank=True, null=True)
+ 
+    def validate_social_links(value):
+        """
+        Валидатор социальных ссылок
+        """
+        valid_domains = ['facebook.com', 'instagram.com', 'twitter.com', 'linkedin.com']
+        for link in value:
+            if not any(domain in link for domain in valid_domains):
+                raise ValidationError(f"Неподдерживаемая социальная сеть в ссылке: {link}")
+    
+    profile_picture = models.ImageField(
+        upload_to='profile_pictures/', 
+        blank=True, 
+        null=True,
+        validators=[
+            # Валидация размера изображения (например, не более 5 МБ)
+            FileExtensionValidator(
+                allowed_extensions=['jpg', 'jpeg', 'png', 'gif'],
+                message="Разрешены только изображения в форматах jpg, jpeg, png, gif"
+            )
+        ]
+    )
+    
+    social_links = models.JSONField(
+        blank=True,
+        null=True,
+        default=list,
+        validators=[validate_social_links]
+    )
+    
+    payment_methods = models.JSONField(
+        blank=True,
+        null=True,
+        default=list
+    )
+    
+    order_preferences = models.JSONField(
+        blank=True,
+        null=True,
+        default=dict
+    )
 
     def __str__(self):
         return f"{self.user.username} - {self.get_role_display()}"
 
+    class Meta:
+        verbose_name = "Профиль пользователя"
+        verbose_name_plural = "Профили пользователей"
+        unique_together = ['user', 'email']
+
 
 class DeliveryPerson(models.Model):
     STATUS_CHOICES = [
-        ('available', 'Доступен'),
-        ('busy', 'Занят'),
-        ('offline', 'Не в сети'),
+        ("available", "Доступен"),
+        ("busy", "Занят"),
+        ("offline", "Не в сети"),
     ]
-    
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    phone_number = models.CharField(max_length=20)
-    vehicle_type = models.CharField(max_length=50, choices=[
-        ('bicycle', 'Велосипед'),
-        ('motorcycle', 'Мотоцикл'),
-        ('car', 'Автомобиль'),
-        ('foot', 'Пешком'),
-    ])
-    current_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    current_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='offline')
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    vehicle_type = models.CharField(
+        max_length=50,
+        choices=(
+            ("bicycle", "Велосипед"),
+            ("motorcycle", "Мотоцикл"),
+            ("car", "Автомобиль"),
+            ("foot", "Пешком"),
+        ),
+    )
+    current_latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True
+    )
+    current_longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="offline")
     last_location_update = models.DateTimeField(auto_now=True)
     is_available = models.BooleanField(default=True)
     avg_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
 
     # Поля для верификации документов
-    document_type = models.CharField(max_length=50, blank=True, null=True, help_text="Тип документа (паспорт, права и т.д.)")
-    document_number = models.CharField(max_length=100, blank=True, null=True, help_text="Номер документа")
-    document_front_image = models.ImageField(upload_to='documents/front/', blank=True, null=True, help_text="Изображение лицевой стороны документа")
-    document_back_image = models.ImageField(upload_to='documents/back/', blank=True, null=True, help_text="Изображение обратной стороны документа")
-    is_documents_verified = models.BooleanField(default=False, help_text="Статус верификации документов")
-    document_submission_date = models.DateTimeField(auto_now_add=True, null=True, blank=True, help_text="Дата подачи документов")
-    
+    document_type = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Тип документа (паспорт, права и т.д.)",
+    )
+    document_number = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Номер документа",
+    )
+    document_front_image = models.ImageField(
+        upload_to="documents/front/",
+        blank=True,
+        null=True,
+        help_text="Изображение лицевой стороны документа",
+    )
+    document_back_image = models.ImageField(
+        upload_to="documents/back/",
+        blank=True,
+        null=True,
+        help_text="Изображение обратной стороны документа",
+    )
+    is_documents_verified = models.BooleanField(
+        default=False,
+        help_text="Статус верификации документов",
+    )
+    document_submission_date = models.DateTimeField(
+        auto_now_add=True,
+        null=True,
+        blank=True,
+        help_text="Дата подачи документов",
+    )
+
     def __str__(self):
         return f"{self.user.username} - {self.get_vehicle_type_display()}"
 
-class Order(models.Model):
-    STATUS_CHOICES = [
-        ('cart', 'Корзина'), # Добавлен статус 'Корзина'
-        ('pending', 'Ожидает подтверждения'),
-        ('confirmed', 'Подтвержден'),
-        ('preparing', 'Готовится'),
-        ('assigned', 'Назначен курьер'),
-        ('picked_up', 'Курьер забрал'),
-        ('delivering', 'Доставляется'),
-        ('delivered', 'Доставлен'),
-        ('cancelled', 'Отменен'),
-    ]
-    
-    order_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
-    customer = models.ForeignKey(User, on_delete=models.CASCADE)
-    products = models.ManyToManyField(Product, through='OrderItem')
-    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
-    delivery_fee = models.DecimalField(max_digits=6, decimal_places=2, default=0.00)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    
-    # Адрес доставки
-    delivery_address = models.TextField()
-    delivery_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    delivery_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    
-    # Контактная информация
-    phone_number = models.CharField(max_length=20)
-    customer_name = models.CharField(max_length=100, default='Клиент')
-    
-    # Время
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    estimated_delivery_time = models.DateTimeField(null=True, blank=True)
-    actual_delivery_time = models.DateTimeField(null=True, blank=True)
-    
-    # Курьер
-    delivery_person = models.ForeignKey(DeliveryPerson, on_delete=models.SET_NULL, null=True, blank=True)
-    restaurant = models.ForeignKey('Restaurant', on_delete=models.SET_NULL, null=True, blank=True)
-    delivery_zone = models.ForeignKey(DeliveryZone, on_delete=models.SET_NULL, null=True, blank=True)
-    
-    # Дополнительная информация
-    notes = models.TextField(blank=True)
-    payment_method = models.CharField(max_length=20, choices=[
-        ('cash', 'Наличные'),
-        ('card', 'Карта'),
-        ('online', 'Онлайн'),
-        ('elcart', 'Элкарт'),
-        ('mbank', 'МБанк'),
-        ('eldik', 'Элдик'),
-        ('optima', 'Optima Bank'),
-        ('demir', 'Demir Bank'),
-        ('bakai', 'Bakai Bank'),
-        ('kompanion', 'Kompanion Bank'),
-        ('rahatpay', 'Рахат Pay'),
-        ('kaspi', 'Kaspi'),
-        ('applepay', 'Apple Pay'),
-        ('googlepay', 'Google Pay'),
-    ], default='cash')
-    
-    service_fee = models.DecimalField(max_digits=8, decimal_places=2, default=0.00, help_text="Комиссия сервиса")
-    courier_fee = models.DecimalField(max_digits=8, decimal_places=2, default=0.00, help_text="Оплата курьеру")
-    
-    def __str__(self):
-        return f"Заказ {self.order_id} - {self.customer.username}"
-    
-    @property
-    def total_with_delivery(self):
-        return self.total_amount + self.delivery_fee
-
-    def calculate_fees(self):
-        # Попытка рассчитать расстояние через 2ГИС
-        distance_meters = None
-        try:
-            from delivery.services import DGISService  # локальный импорт, чтобы избежать циклов
-            if self.restaurant and self.delivery_latitude and self.delivery_longitude:
-                dgis = DGISService()
-                matrix = dgis.get_distance_matrix(
-                    origins=[(self.restaurant.latitude, self.restaurant.longitude)],
-                    destinations=[(float(self.delivery_latitude), float(self.delivery_longitude))]
-                )
-                distance_meters = matrix['routes'][0]['distance']  # в метрах
-        except Exception:
-            # Если API не доступен — fallback на фиксированный тариф
-            distance_meters = None
-
-        if distance_meters:
-            from delivery.services import DGISService
-            delivery_fee = DGISService().calculate_delivery_cost(distance_meters)
-        else:
-            # Fallback логика (как раньше)
-            zone_fee = self.delivery_zone.delivery_fee if self.delivery_zone else 100
-            percent_fee = self.total_amount * 0.10  # 10%
-            min_fee = 80
-            delivery_fee = max(zone_fee, percent_fee, min_fee)
-
-        # 4. Комиссия сервиса (например, 15% от стоимости доставки)
-        service_fee = delivery_fee * 0.15
-        # 5. Оплата курьеру (остальное)
-        courier_fee = delivery_fee - service_fee
-        self.delivery_fee = delivery_fee
-        self.service_fee = service_fee
-        self.courier_fee = courier_fee
-        return delivery_fee, service_fee, courier_fee
-
-    def save(self, *args, **kwargs):
-        self.calculate_fees()
-        super().save(*args, **kwargs)
 
 class OrderItem(models.Model):
-    order = models.ForeignKey(Order, on_delete=models.CASCADE)
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    
+
     def __str__(self):
         return f"{self.quantity}x {self.product.name}"
+
 
 class DeliveryTracking(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
@@ -209,87 +496,129 @@ class DeliveryTracking(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=50)
     estimated_arrival = models.DateTimeField(null=True, blank=True)
-    
+
     class Meta:
-        ordering = ['-timestamp']
-    
-    def __str__(self):
-        return f"Отслеживание {self.order.order_id} - {self.timestamp}"
-
-class Restaurant(models.Model):
-    name = models.CharField(max_length=200)
-    address = models.TextField()
-    latitude = models.DecimalField(max_digits=9, decimal_places=6)
-    longitude = models.DecimalField(max_digits=9, decimal_places=6)
-    phone_number = models.CharField(max_length=20)
-    working_hours = models.CharField(max_length=100, default="09:00-22:00")
-    is_active = models.BooleanField(default=True)
-    avg_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
-    partner_user = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_restaurants', help_text="Пользователь, управляющий этим рестораном (партнёр-магазин)")
+        ordering = ["-timestamp"]
 
     def __str__(self):
-        return self.name
+        # Order использует поле `id`, а не `order_id`
+        return f"Отслеживание {self.order.id} - " f"{self.timestamp}"
+
 
 class Rating(models.Model):
     order = models.OneToOneField(Order, on_delete=models.CASCADE)
-    courier = models.ForeignKey(DeliveryPerson, on_delete=models.CASCADE, related_name='ratings')
-    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='ratings')
-    score = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    courier = models.ForeignKey(
+        DeliveryPerson,
+        on_delete=models.CASCADE,
+        related_name="ratings",
+    )
+    restaurant = models.ForeignKey(
+        Restaurant,
+        on_delete=models.CASCADE,
+        related_name="ratings",
+    )
+    score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+    )
     comment = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Rating {self.score} for {self.order.order_id}"
+        return f"Rating {self.score} for {self.order.id}"
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        # update aggregates
-        self.update_aggregates()
 
-    def update_aggregates(self):
-        from django.db.models import Avg
-        # courier average
-        courier_avg = self.courier.ratings.aggregate(avg=Avg('score'))['avg'] or 0
-        self.courier.avg_rating = courier_avg
-        self.courier.save(update_fields=['avg_rating'])
-        # restaurant average
-        rest_avg = self.restaurant.ratings.aggregate(avg=Avg('score'))['avg'] or 0
-        self.restaurant.avg_rating = rest_avg
-        self.restaurant.save(update_fields=['avg_rating'])
 
 class Payout(models.Model):
-    delivery_person = models.ForeignKey(DeliveryPerson, on_delete=models.CASCADE, related_name='payouts')
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    payout_date = models.DateTimeField(auto_now_add=True)
-    description = models.TextField(blank=True, null=True)
+    """
+    Модель для выплат курьерам
+    """
+    PAYOUT_STATUS_CHOICES = [
+        ('pending', _('Pending')),
+        ('processed', _('Processed')),
+        ('failed', _('Failed'))
+    ]
+
+    delivery_person = models.ForeignKey(
+        'DeliveryPerson', 
+        on_delete=models.CASCADE, 
+        related_name='payouts'
+    )
+    amount = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        validators=[MinValueValidator(0)]
+    )
+    status = models.CharField(
+        max_length=20, 
+        choices=PAYOUT_STATUS_CHOICES, 
+        default='pending'
+    )
+    created_at = models.DateTimeField(
+        default=timezone.now
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True
+    )
+    transaction_details = models.TextField(
+        blank=True, 
+        null=True
+    )
 
     def __str__(self):
-        return f"Выплата {self.amount} для {self.delivery_person.user.username} от {self.payout_date.strftime('%Y-%m-%d')}"
+        return f"{_('Payout')} - {self.delivery_person.user.username} - {self.amount}"
 
     class Meta:
-        ordering = ['payout_date']
+        verbose_name = _('Payout')
+        verbose_name_plural = _('Payouts')
+        ordering = ['-created_at']
+
 
 class PromoCode(models.Model):
     DISCOUNT_TYPE_CHOICES = [
-        ('percentage', 'Процентная скидка'),
-        ('fixed_amount', 'Фиксированная сумма'),
-        ('free_delivery', 'Бесплатная доставка'),
+        ("percentage", "Процентная скидка"),
+        ("fixed_amount", "Фиксированная сумма"),
+        ("free_delivery", "Бесплатная доставка"),
     ]
-    code = models.CharField(max_length=50, unique=True, help_text="Промокод (например, NEWYEAR2024)")
-    discount_type = models.CharField(max_length=20, choices=DISCOUNT_TYPE_CHOICES, default='fixed_amount')
-    discount_value = models.DecimalField(max_digits=5, decimal_places=2, help_text="Значение скидки (например, 10 для 10% или 150 для 150 ед.)")
+    code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Промокод (например, NEWYEAR2024)",
+    )
+    discount_type = models.CharField(
+        max_length=20,
+        choices=DISCOUNT_TYPE_CHOICES,
+        default="fixed_amount",
+    )
+    discount_value = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        help_text="Значение скидки (например, 10 для 10% или 150 для 150 ед.)",
+    )
     start_date = models.DateTimeField(help_text="Дата начала действия промокода")
     end_date = models.DateTimeField(help_text="Дата окончания действия промокода")
-    min_order_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Минимальная сумма заказа для применения промокода")
+    min_order_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0.00,
+        help_text="Минимальная сумма заказа для применения промокода",
+    )
     is_active = models.BooleanField(default=True, help_text="Активен ли промокод")
-    usage_limit = models.PositiveIntegerField(blank=True, null=True, help_text="Максимальное количество использований промокода")
-    times_used = models.PositiveIntegerField(default=0, help_text="Сколько раз промокод был использован")
+    usage_limit = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        help_text="Максимальное количество использований промокода",
+    )
+    times_used = models.PositiveIntegerField(
+        default=0,
+        help_text="Сколько раз промокод был использован",
+    )
 
     def __str__(self):
         return self.code
 
     def is_valid(self, order_amount):
-        from django.utils import timezone
         now = timezone.now()
         if not self.is_active:
             return False
@@ -303,48 +632,144 @@ class PromoCode(models.Model):
 
     def apply_discount(self, order_amount, delivery_fee):
         if not self.is_valid(order_amount):
-            return 0, delivery_fee, False # Скидка, новая стоимость доставки, флаг применения
+            # Скидка, новая стоимость доставки, флаг применения
+            return 0, delivery_fee, False
 
-        if self.discount_type == 'percentage':
+        if self.discount_type == "percentage":
             discount_amount = order_amount * (self.discount_value / 100)
             return discount_amount, delivery_fee, True
-        elif self.discount_type == 'fixed_amount':
+        elif self.discount_type == "fixed_amount":
             discount_amount = self.discount_value
             return discount_amount, delivery_fee, True
-        elif self.discount_type == 'free_delivery':
-            return 0, 0, True # 0 скидка, 0 доставка
+        elif self.discount_type == "free_delivery":  # 0 скидка, 0 доставка
+            return 0, 0, True
         return 0, delivery_fee, False
 
 
 class Payment(models.Model):
     STATUS_CHOICES = [
-        ('pending', 'Ожидает'),
-        ('completed', 'Завершена'),
-        ('failed', 'Неуспешна'),
-        ('refunded', 'Возвращена'),
+        ("pending", "Ожидает"),
+        ("completed", "Завершена"),
+        ("failed", "Неуспешна"),
+        ("refunded", "Возвращена"),
     ]
-    order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='payment')
+    order = models.OneToOneField(
+        Order,
+        on_delete=models.CASCADE,
+        related_name="payment",
+    )
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_method = models.CharField(max_length=50)
-    transaction_id = models.CharField(max_length=255, unique=True, blank=True, null=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    transaction_id = models.CharField(
+        max_length=255,
+        unique=True,
+        blank=True,
+        null=True,
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Payment for Order {self.order.order_id} - {self.amount} ({self.status})"
+        return (
+            f"Payment for Order {self.order.id} - "
+            f"{self.amount} ({self.status})"
+        )
 
 
 class DeviceToken(models.Model):
     DEVICE_TYPE_CHOICES = [
-        ('android', 'Android'),
-        ('ios', 'iOS'),
-        ('web', 'Web'),
+        ("android", "Android"),
+        ("ios", "iOS"),
+        ("web", "Web"),
     ]
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='device_tokens')
-    registration_id = models.CharField(max_length=255, unique=True, help_text="Токен устройства для push-уведомлений")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="device_tokens",
+    )
+    registration_id = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="Токен устройства для push-уведомлений",
+    )
     device_type = models.CharField(max_length=10, choices=DEVICE_TYPE_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Token for {self.user.username} ({self.device_type})"
+        return f"Token for {self.user.username} (" f"{self.device_type})"
+
+
+class PasswordResetToken(models.Model):
+    """
+    Model to manage secure password reset tokens
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='password_reset_tokens'
+    )
+    token = models.CharField(
+        max_length=128,
+        unique=True,
+        db_index=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    def is_valid(self):
+        """
+        Check if the token is still valid
+        """
+        return self.expires_at > timezone.now()
+
+    def __str__(self):
+        return f"Password Reset Token for {self.user.email}"
+
+    class Meta:
+        verbose_name = 'Password Reset Token'
+        verbose_name_plural = 'Password Reset Tokens'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'token', 'expires_at'])
+        ]
+
+# Улучшенная модель пользователя
+class CustomUser(AbstractUser):
+    # Оптимизация полей
+    email = models.EmailField(_('email address'), unique=True, db_index=True)
+    date_of_birth = models.DateField(_('date of birth'), null=True, blank=True)
+    preferred_language = models.CharField(
+        _('preferred language'), 
+        max_length=10, 
+        choices=[
+            ('ru', _('Russian')),
+            ('ky', _('Kyrgyz')),
+            ('en', _('English'))
+        ], 
+        default='ru',
+        db_index=True
+    )
+    
+    # Использование более эффективных полей
+    notification_settings = models.JSONField(
+        _('notification settings'), 
+        default=dict, 
+        blank=True
+    )
+    profile_picture = models.ImageField(
+        _('profile picture'), 
+        upload_to='profile_pictures/', 
+        null=True, 
+        blank=True
+    )
+    
+    # Добавление индексов для часто используемых полей
+    class Meta:
+        indexes = [
+            models.Index(fields=['email', 'is_active']),
+            models.Index(fields=['preferred_language'])
+        ]
+
+    def __str__(self):
+        return self.username or self.email

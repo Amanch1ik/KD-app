@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Karakol Delivery</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Main Screen -->
+    <header class="header">
+        <div class="container">
+            <h1 class="logo" style="color: #F28C38;">Karakol Delivery</h1>
+            <nav class="nav">
+                <ul class="category-menu">
+                    <li class="category-item active"><a href="#" style="color: #1A3C5E;">Barchasi</a></li>
+                    <li class="category-item"><a href="#" style="color: #1A3C5E;">Pitsa</a></li>
+                    <li class="category-item"><a href="#" style="color: #1A3C5E;">Burgerlar</a></li>
+                    <li class="category-item"><a href="#" style="color: #1A3C5E;">Salatlar</a></li>
+                    <li class="category-item"><a href="#" style="color: #1A3C5E;">Ichimliklar</a></li>
+                    <li class="category-item"><a href="#" style="color: #1A3C5E;">Shirinliklar</a></li>
+                    <li class="category-item"><a href="#" style="color: #1A3C5E;">Makaroniar</a></li>
+                </ul>
+            </nav>
+            <div class="header-icons">
+                <input type="text" class="search-input" placeholder="Mahsulotlarni qidirish..." style="color: #8A8A8A;">
+                <div class="icon">🔍</div> <!-- Search Icon -->
+                <div class="icon">📄</div> <!-- Orders Icon -->
+                <div class="icon">🛒 <span class="cart-count">0</span></div> <!-- Cart Icon -->
+                <div class="icon">👤</div> <!-- Profile Icon -->
+            </div>
+        </div>
+    </header>
+
+    <main class="main-content container">
+        <section class="products-grid">
+            <div class="product-card yellow">
+                <img src="https://via.placeholder.com/150" alt="Margarita" class="product-card-image">
+                <div class="product-card-content">
+                    <h3 class="product-card-title">Margarita</h3>
+                    <p class="product-card-description">Pomidor va mozzarella bilan klassik pitsa</p>
+                    <p class="product-card-price">45 000 so'm</p>
+                    <button class="add-to-cart-button">+ Savatga qo’shish</button>
+                </div>
+            </div>
+            <div class="product-card red">
+                <img src="https://via.placeholder.com/150" alt="Peperoni" class="product-card-image">
+                <div class="product-card-content">
+                    <h3 class="product-card-title">Peperoni</h3>
+                    <p class="product-card-description">Peperoni kolbasasi va pishloq bilan pitsa</p>
+                    <p class="product-card-price">55 000 so'm</p>
+                    <button class="add-to-cart-button">+ Savatga qo’shish</button>
+                </div>
+            </div>
+            <div class="product-card blue">
+                <img src="https://via.placeholder.com/150" alt="Classic Burger" class="product-card-image">
+                <div class="product-card-content">
+                    <h3 class="product-card-title">Classic Burger</h3>
+                    <p class="product-card-description">Mol go'shti, pishloq, salat bargi, piyoz va maxsus sous</p>
+                    <p class="product-card-price">35 000 so'm</p>
+                    <button class="add-to-cart-button">+ Savatga qo’shish</button>
+                </div>
+            </div>
+            <div class="product-card green">
+                <img src="https://via.placeholder.com/150" alt="Sezar Salati" class="product-card-image">
+                <div class="product-card-content">
+                    <h3 class="product-card-title">Sezar Salati</h3>
+                    <p class="product-card-description">Tovuq, pomidor, parmezan pishlog’i va sezar sousi</p>
+                    <p class="product-card-price">25 000 so'm</p>
+                    <button class="add-to-cart-button">+ Savatga qo’shish</button>
+                </div>
+            </div>
+            <!-- More products can be added here -->
+        </section>
+    </main>
+
+    <!-- Cart Section -->
+    <section class="cart-section container">
+        <h2>Savat</h2>
+        <div class="cart-items-list">
+            <div class="cart-item">
+                <div class="cart-item-details">
+                    <span class="cart-item-title">Margarita x 2</span>
+                    <span class="cart-item-price">45 000 so'm</span>
+                </div>
+                <div class="quantity-control">
+                    <button class="quantity-button minus">-</button>
+                    <span class="quantity">2</span>
+                    <button class="quantity-button plus">+</button>
+                </div>
+            </div>
+            <!-- More cart items here -->
+        </div>
+        <div class="total-amount">
+            <span>Jami:</span>
+            <span>90 000,00 so'm</span>
+        </div>
+        <button class="checkout-button">Buyurtma berish</button>
+    </section>
+
+    <!-- My Orders Section -->
+    <section class="my-orders-section container">
+        <h2>Mening buyurtmalarim</h2>
+        <div class="orders-list">
+            <div class="order-card">
+                <div class="order-header">
+                    <h3>Buyurtma #1</h3>
+                    <span class="order-status status-pending">Pending</span>
+                </div>
+                <ul class="order-item-list">
+                    <li>
+                        <span>Margarita x 2</span>
+                        <span>45 000 so'm</span>
+                    </li>
+                    <li>
+                        <span>Burger Klassik x 1</span>
+                        <span>35 000 so'm</span>
+                    </li>
+                </ul>
+                <div class="order-total">
+                    <span>Jami:</span>
+                    <span>125 000 so'm</span>
+                </div>
+                <div class="order-details">
+                    <p>Sana: 7-avg, 2025, 23:50</p>
+                    <p>Manzil: Amir Temur ko'chasi 10</p>
+                </div>
+            </div>
+
+            <div class="order-card">
+                <div class="order-header">
+                    <h3>Buyurtma #2</h3>
+                    <span class="order-status status-delivered">Delivered</span>
+                </div>
+                <ul class="order-item-list">
+                    <li>
+                        <span>Sezar Salati x 3</span>
+                        <span>25 000 so'm</span>
+                    </li>
+                </ul>
+                <div class="order-total">
+                    <span>Jami:</span>
+                    <span>75 000 so'm</span>
+                </div>
+                <div class="order-details">
+                    <p>Sana: 6-avg, 2025, 23:50</p>
+                    <p>Manzil: Navoiy ko'chasi 5</p>
+                </div>
+            </div>
+            <!-- More order cards here -->
+        </div>
+    </section>
+
+    <!-- Profile Section -->
+    <section class="profile-section container">
+        <h2>Mening profilim</h2>
+        <div class="profile-avatar">👤</div>
+        <div class="profile-info">
+            <p><strong>+998901234567</strong></p>
+            <p>Salimov Azizjon</p>
+        </div>
+        <div class="profile-form">
+            <div class="profile-field">
+                <label for="full-name">Ism va familiya</label>
+                <input type="text" id="full-name" value="Salimov Azizjon">
+            </div>
+            <div class="profile-field">
+                <label for="phone-number">Telefon raqam</label>
+                <input type="text" id="phone-number" value="+998901234567">
+            </div>
+            <div class="profile-field">
+                <label for="address">Manzil</label>
+                <input type="text" id="address" value="Namangan viloyati, Chust tumani">
+            </div>
+            <div class="profile-buttons">
+                <button class="profile-button cancel-button">Bekor qilish</button>
+                <button class="profile-button save-button">Saqlash</button>
+            </div>
+            <button class="profile-button logout-button">Chiqish</button>
+        </div>
+    </section>
+
+    <!-- Product Detail Modal -->
+    <div class="modal" id="product-detail-modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <img src="https://via.placeholder.com/200" alt="Margarita" class="modal-product-image">
+            <h3 class="modal-product-title">Margarita</h3>
+            <p class="modal-product-description">Pomidor va mozzarella bilan klassik pitsa</p>
+            <p class="modal-product-price">45 000 so'm</p>
+            <button class="add-to-cart-button">+ Savatga qo’shish</button>
+        </div>
+    </div>
+
+    <!-- Additional Screen -->
+    <section class="additional-screen">
+        <div class="container">
+            <div class="hero-banner" style="background-color: #F28C38;">
+                <h2 style="color: #FFFFFF;">Eng mazali taomlar eshigingiz oldida!</h2>
+                <p>Karakol Delivery bilan sevimli taomlaringiz tez va oson buyurtma qiling.</p>
+                <div class="feature-buttons">
+                    <button class="feature-button" style="background-color: #2196F3;">Теz yetkazib berish</button>
+                    <button class="feature-button" style="background-color: #4CAF50;">Sifatli taomlar</button>
+                    <button class="feature-button" style="background-color: #9C27B0;">Hamyonbop narxlar</button>
+                    <button class="feature-button" style="background-color: #F44336;">24/7 Yordam</button>
+                </div>
+                <button class="view-products-button" style="background-color: #F28C38;">Mahsulotlarni ko’rish</button>
+            </div>
+        </div>
+    </section>
+
+    <script src="script.js"></script>
+</body>
+</html>

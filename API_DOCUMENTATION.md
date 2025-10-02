@@ -6,7 +6,24 @@ http://127.0.0.1:8000/api/
 ```
 
 ## Аутентификация
-Для защищенных эндпоинтов (заказы) требуется аутентификация через Django REST Framework.
+Для защищенных эндпоинтов используется JWT (SimpleJWT).
+
+Получение токена:
+```
+POST /api/token/
+{"username": "test", "password": "..."}
+```
+
+Обновление токена:
+```
+POST /api/token/refresh/
+{"refresh": "..."}
+```
+
+Заголовок авторизации:
+```
+Authorization: Bearer <access_token>
+```
 
 ## Эндпоинты
 
@@ -60,6 +77,7 @@ DELETE /api/categories/{id}/
 #### Получить список всех продуктов
 ```
 GET /api/products/
+GET /api/products/?restaurant={id}
 ```
 
 **Ответ:**
@@ -114,7 +132,7 @@ DELETE /api/products/{id}/
 #### Получить список заказов пользователя
 ```
 GET /api/orders/
-Authorization: Token your_token_here
+Authorization: Bearer your_token_here
 ```
 
 **Ответ:**
@@ -146,7 +164,7 @@ Authorization: Token your_token_here
 #### Создать новый заказ
 ```
 POST /api/orders/
-Authorization: Token your_token_here
+Authorization: Bearer your_token_here
 Content-Type: application/json
 
 {
@@ -159,7 +177,7 @@ Content-Type: application/json
 #### Обновить статус заказа
 ```
 PATCH /api/orders/{id}/
-Authorization: Token your_token_here
+Authorization: Bearer your_token_here
 
 {
     "status": "confirmed"
@@ -197,7 +215,7 @@ fetch('http://127.0.0.1:8000/api/orders/', {
     method: 'POST',
     headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Token your_token_here'
+        'Authorization': 'Bearer your_token_here'
     },
     body: JSON.stringify({
         total_amount: "31.98",
@@ -231,9 +249,9 @@ response = requests.post('http://127.0.0.1:8000/api/products/', json=data)
 ## Для фронтенд-разработчиков
 
 1. **Начните с получения списка категорий и продуктов**
-2. **Для работы с заказами потребуется система аутентификации**
+2. **Для работы с заказами потребуется система аутентификации (JWT)**
 3. **Все эндпоинты поддерживают CORS для фронтенд-приложений**
-4. **Используйте фильтрацию по категориям для каталога товаров**
+4. **Используйте фильтрацию по категориям/ресторану для каталога товаров**
 
 ## Тестирование API
 

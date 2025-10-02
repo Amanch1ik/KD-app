@@ -1,0 +1,117 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Karakol Delivery</title>
+    <link rel="stylesheet" href="{% static 'delivery/style.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="logo">Karakol Delivery</div>
+            <ul class="category-menu">
+                <li class="category-item">Barchasi</li>
+                <li class="category-item">Pitsa</li>
+                <li class="category-item">Burgerlar</li>
+                <li class="category-item">Salatlar</li>
+            </ul>
+            <div class="header-icons">
+                <div class="icon search" title="Search">🔍</div>
+                <div class="icon cart" title="Cart">🛒</div>
+                <div class="icon user" title="Profile">👤</div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="hero">
+            <div class="hero-banner">
+                <h1>Eng mazali taomlar eshigingiz oldida!</h1>
+                <p>Karakol Delivery bilan sevimli taomlaringizni tez va oson buyurtma qiling.</p>
+            </div>
+            <div class="feature-row">
+                <div class="feature-button blue">Tez yetkazib berish</div>
+                <div class="feature-button green">Sifatli taomlar</div>
+                <div class="feature-button purple">Hamyonbop narxlar</div>
+                <div class="feature-button red">24/7 Yordam</div>
+            </div>
+        </section>
+
+        <section class="products">
+            <h2>Barcha mahsulotlar</h2>
+            <div class="products-grid">
+                <!-- Пример карточек, фронтенд заменит на реальные данные -->
+                <div class="product-card yellow">
+                    <div class="product-card-header">
+                        <div class="product-card-title">Margarita</div>
+                    </div>
+                    <div class="product-card-content">
+                        <div class="product-card-subtitle">Pomidor va mozzarella bilan klassik pitsa</div>
+                        <div class="product-card-footer">
+                            <div class="product-card-price">45 000 so'm</div>
+                            <button class="add-to-cart-button">+</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card red">
+                    <div class="product-card-header">
+                        <div class="product-card-title">Peperoni</div>
+                    </div>
+                    <div class="product-card-content">
+                        <div class="product-card-subtitle">Peperoni kolbasasi va pishloq bilan</div>
+                        <div class="product-card-footer">
+                            <div class="product-card-price">55 000 so'm</div>
+                            <button class="add-to-cart-button">+</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card blue">
+                    <div class="product-card-header">
+                        <div class="product-card-title">Classic Burger</div>
+                    </div>
+                    <div class="product-card-content">
+                        <div class="product-card-subtitle">Mol go'shti, pishloq, salat bargi</div>
+                        <div class="product-card-footer">
+                            <div class="product-card-price">35 000 so'm</div>
+                            <button class="add-to-cart-button">+</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card green">
+                    <div class="product-card-header">
+                        <div class="product-card-title">Sezar Salati</div>
+                    </div>
+                    <div class="product-card-content">
+                        <div class="product-card-subtitle">Tovuq, pomidor, parmesan</div>
+                        <div class="product-card-footer">
+                            <div class="product-card-price">25 000 so'm</div>
+                            <button class="add-to-cart-button">+</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Модальное окно для деталей продукта -->
+        <div id="product-detail-modal" class="product-modal" style="display:none;">
+            <div class="product-modal-content">
+                <button class="close-button">×</button>
+                <img class="modal-product-image" src="" alt="">
+                <h3 class="modal-product-title"></h3>
+                <p class="modal-product-description"></p>
+                <div class="modal-product-price"></div>
+                <button class="add-to-cart-button">+ Savatga qo'shish</button>
+            </div>
+        </div>
+
+    </main>
+
+    <script src="{% static 'delivery/script.js' %}"></script>
+</body>
+</html>

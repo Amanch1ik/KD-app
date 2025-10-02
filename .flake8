@@ -1,0 +1,50 @@
+[flake8]
+# Base configuration for Flake8 linter
+
+# Ignore specific error codes
+ignore = 
+    E203,   # Whitespace before ':' (conflicts with Black)
+    W503,   # Line break before binary operator (conflicts with Black)
+    F401,   # Imported but unused
+    F403,   # Star imports
+    F405    # Undefined name from star import
+
+# Maximum line length
+max-line-length = 120
+
+# Exclude directories and files from linting
+exclude = 
+    .git,
+    __pycache__,
+    build,
+    dist,
+    *.pyc,
+    *.egg-info,
+    .cache,
+    .eggs,
+    venv,
+    .venv,
+    env,
+    .env,
+    migrations,
+    node_modules
+
+# Per-file ignores
+per-file-ignores = 
+    __init__.py:F401
+    tests.py:E501,F401
+
+# Complexity and style settings
+max-complexity = 10
+max-annotations-complexity = 4
+max-line-complexity = 17
+
+# Select specific error codes to enforce
+select = 
+    B,      # Bugbear checks
+    C,      # Complexity checks
+    E,      # PEP8 errors
+    F,      # Pyflakes
+    W,      # PEP8 warnings
+    T4,     # Debugger checks
+    B9      # Bugbear opinionated warnings
