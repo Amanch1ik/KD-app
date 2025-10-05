@@ -39,7 +39,7 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
-    path('', TemplateView.as_view(template_name='delivery/index.html'), name='home'),
+    path('', TemplateView.as_view(template_name='delivery/home.html'), name='home'),
     path('health/', root_health, name='root_health'),
     path("admin/", admin.site.urls),
     path("api/", include("delivery.urls")),

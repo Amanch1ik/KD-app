@@ -47,6 +47,8 @@
         .text-primary { color: var(--primary-pink); }
         .hover-bg-primary:hover { background-color: #d9468e; }
     </style>
+    <link rel="manifest" href="{% static 'delivery/manifest.json' %}">
+    <meta name="theme-color" content="#ec4899">
 </head>
 <body class="min-h-screen flex flex-col">
 
@@ -55,7 +57,7 @@
             apiBaseUrl: 'http://127.0.0.1:8000/',
             token: null,
             currentPage: 'login',
-            currentLang: 'kg', // Default to Kyrgyz
+            currentLang: 'ky', // Default to Kyrgyz
             currentCurrency: 'KGS', // Default to Kyrgyz currency
             cart: [],
             cachedData: {
@@ -66,7 +68,7 @@
             },
 
             translations: {
-                'kg': {
+                'ky': {
                     appName: 'Karakol Delivery', homeTitle: 'Бир чыкылдатуу менен эң даамдуу тамактар!', homeSubtitle: 'Сүйүктүү рестораныңыздан тамакка заказ бериңиз.', viewRestaurants: 'Ресторандарды көрүү',
                     restaurantsTitle: 'Ресторандар', menuTitle: 'Меню', addToCart: 'Себетке кошуу', orderPageTitle: 'Буйрутма берүү', orderSummary: 'Сиздин буйрутмаңыз:',
                     totalSum: 'Жалпы сумма:', paymentType: 'Төлөм түрү:', placeOrder: 'Буйрутма берүү', trackingTitle: 'Буйрутманы көзөмөлдөө',
@@ -244,9 +246,9 @@
             });
             getElement('cart-count').textContent = appState.cart.length;
             getElement('app-name-display').textContent = getTranslation('appName');
-            getElement('home-btn').title = getTranslation('homeButton');
-            getElement('cart-btn').title = getTranslation('cartButton');
-            getElement('profile-btn').title = getTranslation('profileButton');
+            if (getElement('home-btn')) getElement('home-btn').title = getTranslation('homeButton');
+            if (getElement('cart-btn')) getElement('cart-btn').title = getTranslation('cartButton');
+            if (getElement('profile-btn')) getElement('profile-btn').title = getTranslation('profileButton');
             document.querySelector('footer').innerHTML = `&copy; 2024 Karakol Delivery. ${getTranslation('footerText')}.`;
 
             const headerNav = getElement('header-nav');
@@ -633,21 +635,14 @@
             </div>
             `;
             getElement('place-order-btn').addEventListener('click', async () => {
-                const orderItems = appState.cart.map(item => ({ product: item.id, quantity: 1 }));
                 try {
-                    const orderData = await fetchData('orders/', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            items: orderItems,
-                        })
-                    });
+                    await fetchData('cart/checkout/', { method: 'POST' });
                     alert(t.orderSuccess);
                     appState.cart = [];
-                    appState.cachedData.orders.push(orderData); // Buyurtmani keshga qo'shish
                     updateUI();
-                    navigateTo('tracking', { orderId: orderData.id });
+                    navigateTo('orders');
                 } catch (error) {
-                    alert(t.orderCreationError); // Используем переведенное сообщение
+                    alert(t.orderCreationError);
                     console.error('Order creation error:', error);
                 }
             });
@@ -658,7 +653,7 @@
             const mainContent = getElement('main-content');
             mainContent.innerHTML = `<p class="text-center text-xl text-gray-500 mt-20">${t.loading}</p>`;
             
-            // Simulyatsiya: API'dan real vaqtda yangilash
+            // Реальное время через WebSocket map_updates + периодический fallback
             const trackOrder = async () => {
                 try {
                     const order = await fetchData(`orders/${data.orderId}/`);
@@ -668,7 +663,7 @@
                         <div class="bg-white rounded-xl shadow-md p-6 text-center max-w-md mx-auto">
                             <h2 class="text-3xl font-bold mb-4">${t.trackingTitle}</h2>
                             <p class="text-lg text-gray-600 mb-2">Buyurtma №${order.id}</p>
-                            <p class="text-2xl font-semibold mb-6 text-primary">${statusText}</p>
+                            <p id="tracking-status" class="text-2xl font-semibold mb-6 text-primary">${statusText}</p>
                             <div class="w-full h-60 bg-gray-200 rounded-lg relative overflow-hidden flex items-center justify-center">
                                 <i class="fa-solid fa-motorcycle text-4xl text-primary animate-pulse"></i>
                             </div>
@@ -678,7 +673,7 @@
                   
     
                     if (order.status !== 'delivered') {
-                        setTimeout(trackOrder, 5000);
+                        setTimeout(trackOrder, 10000);
                     }
                 } catch (error) {
                     mainContent.innerHTML = `<p class="text-center text-red-500 mt-20">${getTranslation('trackingError')}</p>`;
@@ -687,6 +682,28 @@
             };
 
             trackOrder();
+
+            // Подписка на канал карты для мгновенных апдейтов
+            try {
+                const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
+                const wsUrl = `${wsProto}://${location.host}/ws/map/`;
+                const socket = new WebSocket(wsUrl);
+                socket.onmessage = (event) => {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        if (msg.type === 'update') {
+                            // Пришло обновление карты: обновим статус, если наш заказ есть в списке
+                            const activeOrders = msg.payload?.active_orders || [];
+                            const o = activeOrders.find(x => String(x.id) === String(data.orderId));
+                            if (o) {
+                                // перерисуем кусок статуса без полной перезагрузки
+                                const statusEl = document.querySelector('#tracking-status');
+                                if (statusEl) statusEl.textContent = (appState.translations[appState.currentLang].orderStatus[o.status] || o.status);
+                            }
+                        }
+                    } catch {}
+                };
+            } catch (e) { console.warn('WS failed', e); }
         };
 
         const renderProfilePage = async () => {
@@ -999,6 +1016,19 @@
                 case 'profile':
                     renderProfilePage();
                     break;
+                case 'orders':
+                    // simple list from cachedData or fetch
+                    try{ const data=await fetchData('orders/'); appState.cachedData.orders=data.results||[]; }catch(e){}
+                    const orders=appState.cachedData.orders||[];
+                    getElement('main-content').innerHTML = `
+                        <h2 class="text-3xl font-bold mb-6 text-center">${t.orderHistory}</h2>
+                        <div class="space-y-4">
+                          ${orders.map(o=>`<div class=\"bg-white rounded-xl shadow p-4\">
+                            <div class=\"flex justify-between\"><span>#${o.id}</span><span class=\"text-primary\">${t.orderStatus[o.status]||o.status}</span></div>
+                            <div class=\"text-gray-600\">${t.totalSum} ${Number(o.total_amount||0).toLocaleString()} ${appState.currentCurrency}</div>
+                          </div>`).join('')}
+                        </div>`;
+                    break;
                 default:
                     renderHomePage();
             }
@@ -1018,7 +1048,7 @@
             document.querySelectorAll('.lang-button').forEach(btn => {
                 btn.addEventListener('click', () => {
                     appState.currentLang = btn.dataset.lang;
-                    appState.currentCurrency = (appState.currentLang === 'kg' ? 'KGS' : (appState.currentLang === 'ru' ? 'RUB' : 'USD'));
+                    appState.currentCurrency = (appState.currentLang === 'ky' ? 'KGS' : (appState.currentLang === 'ru' ? 'RUB' : 'USD'));
                     renderPage();
                 });
             });
@@ -1027,6 +1057,11 @@
             document.getElementById('cart-btn').addEventListener('click', () => navigateTo('order'));
             document.getElementById('profile-btn').addEventListener('click', () => navigateTo('profile'));
         };
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('{% static "delivery/sw.js" %}');
+            });
+        }
     </script>
 
     <!-- Header va navigatsiya paneli -->
@@ -1046,7 +1081,7 @@
             </nav>
         </div>
         <div class="flex justify-center py-2 bg-gray-100 border-t">
-            <button class="lang-button text-sm px-4 py-1 rounded-full mx-1 transition-colors" data-lang="kg">Кыргызча</button>
+            <button class="lang-button text-sm px-4 py-1 rounded-full mx-1 transition-colors" data-lang="ky">Кыргызча</button>
             <button class="lang-button text-sm px-4 py-1 rounded-full mx-1 transition-colors" data-lang="ru">Русский</button>
             <button class="lang-button text-sm px-4 py-1 rounded-full mx-1 transition-colors" data-lang="en">English</button>
     </div>

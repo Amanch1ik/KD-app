@@ -1,5 +1,8 @@
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+import os
+import json
+import requests
 
 from .models import DeliveryPerson, Order, Restaurant
 from .serializers import (DeliveryPersonSerializer, OrderSerializer,
@@ -26,7 +29,7 @@ def broadcast_map_update():
     )
 
 
-def send_push_notification(user_or_tokens, title, message):
+def send_push_notification(user_or_tokens, title, message, data=None):
     """Отправляет push-уведомление пользователю или на список токенов устройств.
     user_or_tokens: Может быть объектом User, DeliveryPerson, или списком строк (registration_id).
     """
@@ -53,26 +56,26 @@ def send_push_notification(user_or_tokens, title, message):
         )
         return
 
-    # !!! ЗАГЛУШКА: Здесь будет код интеграции с Firebase Cloud Messaging (FCM) или OneSignal
-    # Для реальной реализации нужно будет установить соответствующий SDK и настроить учетные данные.
-    print(
-        f"[PUSH NOTIFICATION MOCK] Sending to {len(registration_ids)} devices. Title: {title}, Message: {message}"
-    )
-    for reg_id in registration_ids:
-        print(f"  -> Device Token: {reg_id}")
+    server_key = os.getenv("FCM_SERVER_KEY")
+    if not server_key:
+        print("FCM_SERVER_KEY is not set; skipping push send.")
+        return
 
-    # Пример отправки с использованием 'requests' (нужно установить: pip install requests)
-    # import requests
-    # headers = {
-    #     "Content-Type": "application/json",
-    #     "Authorization": "Key=YOUR_FCM_SERVER_KEY" # Или "Authorization": "Basic YOUR_ONESIGNAL_REST_API_KEY"
-    # }
-    # payload = {
-    #     "registration_ids": registration_ids, # Для FCM
-    #     "app_id": "YOUR_ONESIGNAL_APP_ID", # Для OneSignal
-    #     "contents": {"en": message},
-    #     "headings": {"en": title},
-    #     "data": {"some_key": "some_value"}
-    # }
-    # response = requests.post("https://fcm.googleapis.com/fcm/send", headers=headers, json=payload)
-    # print(response.json())
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"key={server_key}",
+    }
+    payload = {
+        "registration_ids": registration_ids,
+        "notification": {"title": title, "body": message},
+        "data": data or {},
+        "android": {"priority": "high"},
+        "apns": {"headers": {"apns-priority": "10"}},
+    }
+    try:
+        response = requests.post(
+            "https://fcm.googleapis.com/fcm/send", headers=headers, data=json.dumps(payload)
+        )
+        print(f"FCM response: {response.status_code} {response.text}")
+    except Exception as e:
+        print(f"FCM send error: {e}")

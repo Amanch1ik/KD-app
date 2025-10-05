@@ -7,6 +7,15 @@
     <title>Karakol Delivery</title>
     <link rel="stylesheet" href="{% static 'delivery/style.css' %}">
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="manifest" href="{% static 'delivery/manifest.json' %}">
+    <meta name="theme-color" content="#ec4899">
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('{% static "delivery/sw.js" %}');
+        });
+      }
+    </script>
 </head>
 <body>
     <header class="header">
@@ -42,60 +51,7 @@
 
         <section class="products">
             <h2>Barcha mahsulotlar</h2>
-            <div class="products-grid">
-                <!-- Пример карточек, фронтенд заменит на реальные данные -->
-                <div class="product-card yellow">
-                    <div class="product-card-header">
-                        <div class="product-card-title">Margarita</div>
-                    </div>
-                    <div class="product-card-content">
-                        <div class="product-card-subtitle">Pomidor va mozzarella bilan klassik pitsa</div>
-                        <div class="product-card-footer">
-                            <div class="product-card-price">45 000 so'm</div>
-                            <button class="add-to-cart-button">+</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="product-card red">
-                    <div class="product-card-header">
-                        <div class="product-card-title">Peperoni</div>
-                    </div>
-                    <div class="product-card-content">
-                        <div class="product-card-subtitle">Peperoni kolbasasi va pishloq bilan</div>
-                        <div class="product-card-footer">
-                            <div class="product-card-price">55 000 so'm</div>
-                            <button class="add-to-cart-button">+</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="product-card blue">
-                    <div class="product-card-header">
-                        <div class="product-card-title">Classic Burger</div>
-                    </div>
-                    <div class="product-card-content">
-                        <div class="product-card-subtitle">Mol go'shti, pishloq, salat bargi</div>
-                        <div class="product-card-footer">
-                            <div class="product-card-price">35 000 so'm</div>
-                            <button class="add-to-cart-button">+</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="product-card green">
-                    <div class="product-card-header">
-                        <div class="product-card-title">Sezar Salati</div>
-                    </div>
-                    <div class="product-card-content">
-                        <div class="product-card-subtitle">Tovuq, pomidor, parmesan</div>
-                        <div class="product-card-footer">
-                            <div class="product-card-price">25 000 so'm</div>
-                            <button class="add-to-cart-button">+</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <div class="products-grid"></div>
         </section>
 
         <!-- Модальное окно для деталей продукта -->
@@ -111,6 +67,8 @@
         </div>
 
     </main>
+
+    <div id="cart-summary"></div>
 
     <script src="{% static 'delivery/script.js' %}"></script>
 </body>

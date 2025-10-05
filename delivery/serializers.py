@@ -404,7 +404,7 @@ class DeliveryTrackingSerializer(serializers.ModelSerializer):
         source="delivery_person.user.username",
         read_only=True,
     )
-    order_id = serializers.CharField(source="order.order_id", read_only=True)
+    order_id = serializers.IntegerField(source="order.id", read_only=True)
 
     class Meta:
         model = DeliveryTracking

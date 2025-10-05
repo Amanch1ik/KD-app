@@ -7,6 +7,43 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('cart_v1', JSON.stringify(cart));
     }
 
+    function renderCartSummary() {
+        const summary = document.getElementById('cart-summary');
+        if (!summary) return;
+        const total = cart.reduce((s, i) => s + Number(i.price) * Number(i.quantity), 0);
+        const qty = cart.reduce((s, i) => s + Number(i.quantity), 0);
+        summary.innerHTML = `
+            <div class="cart-summary-inner">
+                <div class="cart-summary-left">
+                    <div class="cart-total-label">Итого:</div>
+                    <div class="cart-total-value">${total.toLocaleString('ru-RU')} so'm</div>
+                </div>
+                <button id="checkout-btn" class="checkout-button" ${qty === 0 ? 'disabled' : ''}>Оформить</button>
+            </div>
+        `;
+        const checkoutBtn = document.getElementById('checkout-btn');
+        if (checkoutBtn) {
+            checkoutBtn.addEventListener('click', async () => {
+                try {
+                    // Send minimal data; server will read existing cart or create order
+                    const res = await fetch('/api/endpoints/cart/checkout/', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken')||''}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({})
+                    });
+                    if (!res.ok) throw new Error('Checkout failed');
+                    const data = await res.json();
+                    showToast('Заказ оформлен');
+                    // Clear local cart; rely on server order
+                    cart.length = 0; saveCart(); renderCartSummary();
+                    window.location.href = '/';
+                } catch (e) {
+                    showToast('Ошибка оформления заказа');
+                }
+            });
+        }
+    }
+
     function showToast(message) {
         let toast = document.getElementById('toast');
         if (!toast) {
@@ -46,7 +83,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="product-card-subtitle">${p.translations?.ru?.description || ''}</div>
                     <div class="product-card-footer">
                         <div class="product-card-price">${Number(p.price).toLocaleString('ru-RU')} so'm</div>
-                        <button class="add-to-cart-button" data-id="${p.id}">+</button>
+                        <div class="cart-qty" data-id="${p.id}">
+                            <button class="qty-btn" data-action="dec" data-id="${p.id}">−</button>
+                            <span class="qty-val">${(JSON.parse(localStorage.getItem('cart_v1')||'[]').find(i=>i.id===p.id)?.quantity)||0}</span>
+                            <button class="qty-btn" data-action="inc" data-id="${p.id}">+</button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -75,24 +116,44 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Не удалось загрузить данные о продуктах. Проверьте подключение к API.');
     }
 
-    // Initialize delegated click handler for adding to cart (once)
+    function updateQtyBadge(id) {
+        const el = document.querySelector(`.cart-qty[data-id="${id}"] .qty-val`);
+        if (!el) return;
+        const it = cart.find(x => String(x.id) === String(id));
+        el.textContent = it ? it.quantity : 0;
+    }
+
+    // Initialize delegated click handler for cart +/- and add
     if (!window.__cartClickListenerAdded) {
         document.addEventListener('click', function(ev) {
-            const btn = ev.target.closest('.add-to-cart-button');
-            if (!btn) return;
-            const id = btn.getAttribute('data-id');
+            const qtyBtn = ev.target.closest('.qty-btn');
+            if (!qtyBtn) return;
+            const id = qtyBtn.getAttribute('data-id');
+            const action = qtyBtn.getAttribute('data-action');
             const prod = (window.loadedProducts || []).find(x => String(x.id) === String(id));
             if (!prod) return;
-            const existing = cart.find(i => i.id === prod.id);
-            if (existing) existing.quantity++;
-            else cart.push({ id: prod.id, title: prod.translations?.ru?.name || prod.translations?.en?.name || prod.id, price: Number(prod.price), quantity: 1 });
+            let item = cart.find(i => i.id === prod.id);
+            if (action === 'inc') {
+                if (item) item.quantity++;
+                else item = cart[cart.push({ id: prod.id, title: prod.translations?.ru?.name || prod.translations?.en?.name || prod.id, price: Number(prod.price), quantity: 1 }) - 1];
+            } else if (action === 'dec') {
+                if (item) {
+                    item.quantity--;
+                    if (item.quantity <= 0) {
+                        const idx = cart.findIndex(i => i.id === prod.id);
+                        if (idx !== -1) cart.splice(idx, 1);
+                    }
+                }
+            }
             saveCart();
-            showToast('Добавлено в корзину');
+            updateQtyBadge(prod.id);
+            renderCartSummary();
         });
         window.__cartClickListenerAdded = true;
     }
 
     loadProducts();
+    renderCartSummary();
 
     // Modal logic
     const productModal = document.getElementById('product-detail-modal');

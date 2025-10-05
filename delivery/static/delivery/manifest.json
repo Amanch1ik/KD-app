@@ -1,0 +1,14 @@
+{
+  "name": "Karakol Delivery",
+  "short_name": "Karakol",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ec4899",
+  "description": "Food delivery app for Karakol",
+  "icons": [
+    { "src": "/static/delivery/images/courier.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/static/delivery/images/order.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
+

@@ -174,10 +174,9 @@ class CartViewSet(viewsets.ViewSet):
         if phone_number:
             cart_order.phone_number = phone_number
         cart_order.status = "pending"
+        self._update_cart_total(cart_order)
         cart_order.save()
-        self.update_cart_total(cart_order)
-        serializer = OrderSerializer(cart_order)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(OrderSerializer(cart_order).data, status=status.HTTP_200_OK)
 
 
 class DeliveryPersonViewSet(viewsets.ModelViewSet):
@@ -379,7 +378,6 @@ class OrderViewSet(viewsets.ModelViewSet):
             total = order.items.aggregate(total=Sum(F('quantity') * F('price')))['total'] or 0
             order.total_amount = total
             order.save()
-            cart_order.delete()
             cart_order.delete()
 
         # Пытаемся назначить курьера через сервис
@@ -660,6 +658,12 @@ class OrderViewSet(viewsets.ModelViewSet):
                 order.save()
 
             broadcast_map_update()
+            # Push уведомления клиенту о смене статуса
+            try:
+                from .utils import send_push_notification
+                send_push_notification(order.customer, title="Статус заказа", message=f"Заказ #{order.id}: {new_status}", data={"order_id": order.id, "status": new_status})
+            except Exception as _e:
+                logger.info("Push send skipped: %s", _e)
             return Response(
                 {
                     "status": "Статус заказа обновлен успешно", 
